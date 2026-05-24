@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llvm-ir"
+version = "0.1.0"
+description = "Utilities for building LLVM IR function-level datasets"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+compiler-gym = ["compiler_gym"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+llvm-ir-build-dataset = "llvm_ir.dataset_builder:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
