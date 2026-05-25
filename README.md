@@ -63,3 +63,66 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
 Если пакет установлен в editable-режиме, можно запускать и обычный `pytest`.
+
+## Сравнение Подбора Pass-Ов
+
+Для быстрого CEM baseline на per-function `.bc`:
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.pass_search \
+  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --limit 30 \
+  --steps 6 \
+  --iterations 3 \
+  --candidates 8
+```
+
+Скрипт пишет `comparison.json` и `comparison.csv` в
+`experiments/pass_search_compare/<timestamp>/`.
+
+CEM вынесен в `src/llvm_ir/cem.py`: это алгоритм поиска последовательности
+pass-ов для одной функции. `src/llvm_ir/pass_search.py` оставляет на себе
+LLVM-обвязку, замер `.text` и CLI, поэтому рядом можно добавлять другие
+алгоритмы поиска с таким же per-function интерфейсом.
+
+По умолчанию CEM использует STOP-action и best-prefix evaluation: кандидат может
+закончить цепочку раньше `--steps`, а результатом считается лучший измеренный
+prefix внутри цепочки. Для сравнения со старым fixed-length режимом можно
+добавить `--no-stop-action`.
+
+PPO-метод из `llvm-minimizer` сравнивается с тем же датасетом после обучения или
+при наличии checkpoint-а. В `llvm-minimizer` один входной `.bc` считается одним
+эпизодом, поэтому per-function датасет подходит напрямую.
+
+Starter-конфиг для обучения PPO:
+
+```bash
+cd ../llvm-minimizer
+llvm-minimizer train --config ../LLVM_IR/configs/llvm_minimizer_ppo.yaml
+```
+
+Короткий воспроизводимый прогон для первого сравнения:
+
+```bash
+cd ../llvm-minimizer
+MPLCONFIGDIR=/tmp/mpl .venv/bin/llvm-minimizer train \
+  --config ../LLVM_IR/configs/llvm_minimizer_ppo_quick.yaml
+```
+
+Сравнение CEM с обученным checkpoint-ом:
+
+```bash
+cd ../LLVM_IR
+MPLCONFIGDIR=/tmp/mpl \
+PYTHONPATH=src:../llvm-minimizer/src \
+../llvm-minimizer/.venv/bin/python -m llvm_ir.pass_search \
+  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --limit 20 \
+  --steps 6 \
+  --iterations 3 \
+  --candidates 8 \
+  --elite-size 3 \
+  --seed 7 \
+  --ppo-config configs/llvm_minimizer_ppo_quick.yaml \
+  --ppo-checkpoint experiments/ppo_runs_quick/<run-id>/best.zip
+```

@@ -1,0 +1,136 @@
+# Starter config for running llvm-minimizer PPO on this repository's
+# per-function LLVM bitcode dataset.
+#
+# Run from /home/vladimir/diplom/llvm-minimizer after installing its deps:
+#   llvm-minimizer train --config /home/vladimir/diplom/LLVM_IR/configs/llvm_minimizer_ppo.yaml
+
+llvm:
+  clang: clang
+  opt: opt
+  llc: llc
+  size_tool: llvm-size
+  size_metric: text
+
+passes:
+  - instcombine
+  - aggressive-instcombine
+  - instsimplify
+  - reassociate
+  - nary-reassociate
+  - simplifycfg
+  - early-cse
+  - gvn
+  - newgvn
+  - gvn-hoist
+  - gvn-sink
+  - sccp
+  - jump-threading
+  - dfa-jump-threading
+  - correlated-propagation
+  - constraint-elimination
+  - speculative-execution
+  - lower-expect
+  - lower-constant-intrinsics
+  - float2int
+  - div-rem-pairs
+  - consthoist
+  - callsite-splitting
+  - mergereturn
+  - sink
+  - infer-address-spaces
+  - separate-const-offset-from-gep
+  - chr
+  - sroa
+  - mem2reg
+  - dse
+  - memcpyopt
+  - mldst-motion
+  - mergeicmps
+  - alignment-from-assumptions
+  - load-store-vectorizer
+  - move-auto-init
+  - dce
+  - adce
+  - bdce
+  - tailcallelim
+  - redundant-dbg-inst-elim
+  - licm
+  - loop-rotate
+  - loop-unroll
+  - loop-unroll-and-jam
+  - loop-deletion
+  - loop-idiom
+  - loop-instsimplify
+  - loop-simplify
+  - loop-simplifycfg
+  - lcssa
+  - indvars
+  - simple-loop-unswitch
+  - loop-sink
+  - loop-load-elim
+  - loop-flatten
+  - loop-distribute
+  - loop-interchange
+  - loop-fusion
+  - loop-versioning
+  - loop-versioning-licm
+  - loop-bound-split
+  - loop-predication
+  - loop-vectorize
+  - slp-vectorizer
+  - vector-combine
+  - ipsccp
+  - inferattrs
+  - function-attrs
+  - called-value-propagation
+  - argpromotion
+  - inline
+  - partial-inliner
+  - partially-inline-libcalls
+  - libcalls-shrinkwrap
+  - mergefunc
+  - globaldce
+  - globalopt
+  - constmerge
+  - deadargelim
+  - strip-dead-prototypes
+  - elim-avail-extern
+  - attributor
+  - iroutliner
+  - hotcoldsplit
+
+env:
+  max_steps: 6
+  corpus_dir: /home/vladimir/diplom/LLVM_IR/datasets/autotune_stratified_30_functions_bc
+  corpus_glob: "*.bc"
+  starting_point: O0
+  seed: 7
+  compute_oz_baseline: true
+  reward:
+    mode: measured
+    oz_shaping_coef: 0.0
+    step_cost: 0.0
+    negative_budget: 0.0
+  curriculum:
+    enabled: false
+
+ppo:
+  total_timesteps: 50000
+  n_steps: 512
+  batch_size: 64
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.02
+  vf_coef: 0.5
+  n_epochs: 10
+  policy: MlpPolicy
+  n_envs: 1
+  seed: 7
+  checkpoint_dir: /home/vladimir/diplom/LLVM_IR/experiments/ppo_runs
+  checkpoint_freq: 10000
+
+logging:
+  tensorboard: /home/vladimir/diplom/LLVM_IR/experiments/ppo_tb
+  level: INFO

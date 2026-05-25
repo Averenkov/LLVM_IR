@@ -16,6 +16,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 llvm-ir-build-dataset = "llvm_ir.dataset_builder:main"
+llvm-ir-pass-search = "llvm_ir.pass_search:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
