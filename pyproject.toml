@@ -15,8 +15,8 @@ compiler-gym = ["compiler_gym"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-llvm-ir-build-dataset = "llvm_ir.dataset_builder:main"
-llvm-ir-pass-search = "llvm_ir.pass_search:main"
+llvm-ir-build-dataset = "llvm_ir.stages.dataset.builder:main"
+llvm-ir-pass-search = "llvm_ir.stages.function_search.pass_search:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

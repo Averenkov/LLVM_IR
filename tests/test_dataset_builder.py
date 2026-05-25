@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 from pathlib import Path
 
-from llvm_ir import dataset_builder as builder
+from llvm_ir.stages.dataset import builder
 
 
 class DatasetBuilderTests(unittest.TestCase):
@@ -82,6 +82,15 @@ attributes #0 = { nounwind }
     def test_select_top_functions_rejects_non_positive_percent(self) -> None:
         with self.assertRaisesRegex(ValueError, "top_percent"):
             builder.select_top_functions({"a.ll": 1}, 0)
+
+
+    def test_select_functions_can_keep_all_functions(self) -> None:
+        functions = {"b.ll": 10, "a.ll": 1}
+
+        self.assertEqual(
+            builder.select_functions(functions, None),
+            [("a.ll", 1), ("b.ll", 10)],
+        )
 
 
     def test_iter_benchmarks_is_deterministic_and_respects_limit(self) -> None:
@@ -211,6 +220,7 @@ attributes #0 = { nounwind }
                 top_percent=50.0,
                 max_benchmarks=None,
                 benchmark_file=None,
+                no_function_selection=False,
                 overwrite=False,
                 keep_intermediate=False,
             )

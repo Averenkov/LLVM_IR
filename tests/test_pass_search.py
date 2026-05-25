@@ -5,15 +5,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from llvm_ir.cem import (
+from llvm_ir.stages.function_search.cem import (
     CEMConfig,
     CEMSearch,
     CandidateResult,
     actions_to_passes,
     search_pass_sequence_for_function,
 )
-from llvm_ir import pass_search
-from llvm_ir.pass_search import select_bitcode_files, summarize_rows
+from llvm_ir.stages.function_search.algorithms import CEMPassSearch, FunctionSearchContext
+from llvm_ir.stages.function_search import pass_search
+from llvm_ir.stages.function_search.pass_search import select_bitcode_files, summarize_rows
 
 
 class PassSearchTests(unittest.TestCase):
@@ -114,6 +115,39 @@ class PassSearchTests(unittest.TestCase):
         self.assertEqual(result.failed, 0)
         self.assertGreaterEqual(result.delta, 0)
         self.assertEqual(len(calls), 6)
+
+    def test_cem_algorithm_implements_function_search_interface(self) -> None:
+        algorithm = CEMPassSearch(
+            CEMConfig(
+                steps=1,
+                iterations=1,
+                candidates=1,
+                elite_size=1,
+                allow_stop=False,
+                epsilon=0.0,
+            )
+        )
+
+        def evaluate(actions, selected_passes, candidate_id):
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=7,
+                reward=3,
+            )
+
+        result = algorithm.search(
+            FunctionSearchContext(
+                bitcode_path=Path("function.bc"),
+                passes=["good"],
+                baseline_size=10,
+                rng=random.Random(1),
+                evaluate_candidate=evaluate,
+            )
+        )
+
+        self.assertEqual(algorithm.name, "cem")
+        self.assertEqual(result.best_size, 7)
 
     def test_evaluate_sequence_returns_best_prefix(self) -> None:
         original_apply = pass_search.apply_pass_sequence
