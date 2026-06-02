@@ -13,6 +13,7 @@ from .cem import (
     CEMConfig,
     search_pass_sequence_for_function,
 )
+from .random_search import RandomSearchConfig, search_pass_sequence_randomly
 
 
 @dataclass
@@ -78,15 +79,49 @@ class CEMPassSearch:
         )
 
 
+@dataclass
+class RandomPassSearch:
+    """Uniform random implementation of the per-function pass-search interface."""
+
+    config: RandomSearchConfig
+    name: str = "random"
+
+    def search(self, context: FunctionSearchContext) -> FunctionSearchResult:
+        result = search_pass_sequence_randomly(
+            context.passes,
+            context.baseline_size,
+            config=self.config,
+            rng=context.rng,
+            evaluate_candidate=context.evaluate_candidate,
+        )
+        return FunctionSearchResult(
+            baseline_size=result.baseline_size,
+            best=result.best,
+            total_evaluated=result.total_evaluated,
+            failed=result.failed,
+        )
+
+
 def build_function_search_algorithm(
     name: str,
     *,
     cem_config: CEMConfig,
+    random_config: RandomSearchConfig | None = None,
 ) -> FunctionPassSearchAlgorithm:
     """Build a per-function search algorithm by name."""
     normalized = name.lower()
     if normalized == "cem":
         return CEMPassSearch(cem_config)
+    if normalized == "random":
+        if random_config is None:
+            random_config = RandomSearchConfig(
+                steps=cem_config.steps,
+                iterations=cem_config.iterations,
+                candidates=cem_config.candidates,
+                allow_stop=cem_config.allow_stop,
+                evaluate_shifts=cem_config.evaluate_shifts,
+            )
+        return RandomPassSearch(random_config)
     raise ValueError(f"Unknown function pass-search algorithm: {name}")
 
 

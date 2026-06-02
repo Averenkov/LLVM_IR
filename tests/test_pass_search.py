@@ -10,10 +10,16 @@ from llvm_ir.stages.function_search.cem import (
     CEMSearch,
     CandidateResult,
     actions_to_passes,
+    cyclic_shifts,
     search_pass_sequence_for_function,
 )
 from llvm_ir.stages.function_search.algorithms import CEMPassSearch, FunctionSearchContext
+from llvm_ir.stages.function_search.algorithms import RandomPassSearch
 from llvm_ir.stages.function_search import pass_search
+from llvm_ir.stages.function_search.random_search import (
+    RandomSearchConfig,
+    search_pass_sequence_randomly,
+)
 from llvm_ir.stages.function_search.pass_search import select_bitcode_files, summarize_rows
 
 
@@ -106,6 +112,7 @@ class PassSearchTests(unittest.TestCase):
                 smoothing=0.5,
                 min_prob=0.0,
                 epsilon=0.5,
+                evaluate_shifts=False,
             ),
             rng=random.Random(3),
             evaluate_candidate=evaluate,
@@ -115,6 +122,88 @@ class PassSearchTests(unittest.TestCase):
         self.assertEqual(result.failed, 0)
         self.assertGreaterEqual(result.delta, 0)
         self.assertEqual(len(calls), 6)
+
+    def test_cem_search_does_not_evaluate_shifts_by_default(self) -> None:
+        calls = []
+
+        def evaluate(actions, selected_passes, candidate_id):
+            calls.append((actions, selected_passes, candidate_id))
+            return CandidateResult(actions, selected_passes, 10, 0.0)
+
+        result = search_pass_sequence_for_function(
+            ["a", "b", "c"],
+            baseline_size=10,
+            config=CEMConfig(
+                steps=3,
+                iterations=2,
+                candidates=3,
+                elite_size=1,
+                allow_stop=False,
+            ),
+            rng=random.Random(1),
+            evaluate_candidate=evaluate,
+        )
+
+        self.assertEqual(result.total_evaluated, 6)
+        self.assertEqual(len(calls), 6)
+
+    def test_cem_search_evaluates_unique_cyclic_shifts(self) -> None:
+        self.assertEqual(
+            cyclic_shifts([0, 1, 2]),
+            [[0, 1, 2], [1, 2, 0], [2, 0, 1]],
+        )
+        self.assertEqual(cyclic_shifts([1, 1, 1]), [[1, 1, 1]])
+        calls = []
+
+        def evaluate(actions, selected_passes, candidate_id):
+            calls.append((actions, selected_passes, candidate_id))
+            size = 10 - int(actions == [1, 2, 0])
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=size,
+                reward=10 - size,
+            )
+
+        search = CEMSearch(
+            passes=["a", "b", "c"],
+            steps=3,
+            rng=random.Random(1),
+            candidates=1,
+            elite_size=1,
+            smoothing=0.5,
+            min_prob=0.0,
+            epsilon=0.0,
+            allow_stop=False,
+        )
+        search.sample = lambda: [0, 1, 2]  # type: ignore[method-assign]
+
+        original_search = CEMSearch
+        try:
+            import llvm_ir.stages.function_search.cem as cem_module
+
+            cem_module.CEMSearch = lambda **_kwargs: search  # type: ignore[assignment]
+            result = search_pass_sequence_for_function(
+                ["a", "b", "c"],
+                baseline_size=10,
+                config=CEMConfig(
+                    steps=3,
+                    iterations=1,
+                    candidates=1,
+                    elite_size=1,
+                    allow_stop=False,
+                    evaluate_shifts=True,
+                ),
+                rng=random.Random(3),
+                evaluate_candidate=evaluate,
+            )
+        finally:
+            cem_module.CEMSearch = original_search  # type: ignore[assignment]
+
+        self.assertEqual(result.total_evaluated, 3)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([call[0] for call in calls], cyclic_shifts([0, 1, 2]))
+        self.assertEqual(result.best.actions, [1, 2, 0])
 
     def test_cem_algorithm_implements_function_search_interface(self) -> None:
         algorithm = CEMPassSearch(
@@ -148,6 +237,93 @@ class PassSearchTests(unittest.TestCase):
 
         self.assertEqual(algorithm.name, "cem")
         self.assertEqual(result.best_size, 7)
+
+    def test_random_search_uses_candidate_evaluator_for_one_function(self) -> None:
+        calls = []
+
+        def evaluate(actions, selected_passes, candidate_id):
+            calls.append((actions, selected_passes, candidate_id))
+            size = 10 - selected_passes.count("good")
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=size,
+                reward=10 - size,
+            )
+
+        result = search_pass_sequence_randomly(
+            ["bad", "good"],
+            baseline_size=10,
+            config=RandomSearchConfig(
+                steps=2,
+                iterations=2,
+                candidates=3,
+                allow_stop=False,
+                evaluate_shifts=False,
+            ),
+            rng=random.Random(3),
+            evaluate_candidate=evaluate,
+        )
+
+        self.assertEqual(result.total_evaluated, 6)
+        self.assertEqual(result.failed, 0)
+        self.assertGreaterEqual(result.delta, 0)
+        self.assertEqual(len(calls), 6)
+
+    def test_random_search_does_not_evaluate_shifts_by_default(self) -> None:
+        calls = []
+
+        def evaluate(actions, selected_passes, candidate_id):
+            calls.append((actions, selected_passes, candidate_id))
+            return CandidateResult(actions, selected_passes, 10, 0.0)
+
+        result = search_pass_sequence_randomly(
+            ["a", "b", "c"],
+            baseline_size=10,
+            config=RandomSearchConfig(
+                steps=3,
+                iterations=2,
+                candidates=3,
+                allow_stop=False,
+            ),
+            rng=random.Random(1),
+            evaluate_candidate=evaluate,
+        )
+
+        self.assertEqual(result.total_evaluated, 6)
+        self.assertEqual(len(calls), 6)
+
+    def test_random_algorithm_implements_function_search_interface(self) -> None:
+        algorithm = RandomPassSearch(
+            RandomSearchConfig(
+                steps=1,
+                iterations=1,
+                candidates=1,
+                allow_stop=False,
+                evaluate_shifts=False,
+            )
+        )
+
+        def evaluate(actions, selected_passes, candidate_id):
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=6,
+                reward=4,
+            )
+
+        result = algorithm.search(
+            FunctionSearchContext(
+                bitcode_path=Path("function.bc"),
+                passes=["good"],
+                baseline_size=10,
+                rng=random.Random(1),
+                evaluate_candidate=evaluate,
+            )
+        )
+
+        self.assertEqual(algorithm.name, "random")
+        self.assertEqual(result.best_size, 6)
 
     def test_evaluate_sequence_returns_best_prefix(self) -> None:
         original_apply = pass_search.apply_pass_sequence
@@ -194,6 +370,38 @@ class PassSearchTests(unittest.TestCase):
 
             self.assertEqual([p.name for p in first], [p.name for p in second])
             self.assertEqual(len(first), 2)
+
+    def test_run_pass_search_jobs_serial_preserves_file_order(self) -> None:
+        original_run = pass_search.run_search_for_function
+        calls = []
+
+        def fake_run(bitcode_path, _passes, *, algorithm, rng):
+            calls.append((bitcode_path.name, algorithm.name, rng.random()))
+            return {
+                "function": bitcode_path.name,
+                "search_algorithm": algorithm.name,
+            }
+
+        try:
+            pass_search.run_search_for_function = fake_run
+            rows = pass_search.run_pass_search_jobs(
+                [Path("b.bc"), Path("a.bc")],
+                ["pass"],
+                algorithm_name="random",
+                cem_config=CEMConfig(
+                    steps=1,
+                    iterations=1,
+                    candidates=1,
+                    elite_size=1,
+                ),
+                seed=7,
+                jobs=1,
+            )
+        finally:
+            pass_search.run_search_for_function = original_run
+
+        self.assertEqual([row["function"] for row in rows], ["b.bc", "a.bc"])
+        self.assertEqual([call[1] for call in calls], ["random", "random"])
 
     def test_summarize_rows_counts_improvements_and_oz_wins(self) -> None:
         summary = summarize_rows(
@@ -247,6 +455,32 @@ class PassSearchTests(unittest.TestCase):
         self.assertEqual(summary["ppo_improved"], 2)
         self.assertEqual(summary["ppo_beats_cem"], 1)
         self.assertEqual(summary["cem_beats_ppo"], 1)
+
+    def test_summarize_rows_counts_random_search(self) -> None:
+        summary = summarize_rows(
+            [
+                {
+                    "search_algorithm": "random",
+                    "baseline_size": 10,
+                    "oz_size": 8,
+                    "oz_delta": 2,
+                    "random_best_size": 7,
+                    "random_delta": 3,
+                },
+                {
+                    "search_algorithm": "random",
+                    "baseline_size": 10,
+                    "oz_size": 6,
+                    "oz_delta": 4,
+                    "random_best_size": 9,
+                    "random_delta": 1,
+                },
+            ]
+        )
+
+        self.assertEqual(summary["functions"], 2)
+        self.assertEqual(summary["random_improved"], 2)
+        self.assertEqual(summary["random_beats_oz"], 1)
 
 
 if __name__ == "__main__":

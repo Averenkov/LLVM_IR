@@ -9,6 +9,7 @@ import random
 import shutil
 import subprocess
 import tempfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -216,6 +217,15 @@ def run_search_for_function(
                 "cem_total_evaluated": result.total_evaluated,
                 "cem_failed": result.failed,
             })
+        elif algorithm.name == "random":
+            row.update({
+                "random_best_size": result.best_size,
+                "random_delta": result.delta,
+                "random_best_passes": best.passes if best else [],
+                "random_best_actions": best.actions if best else [],
+                "random_total_evaluated": result.total_evaluated,
+                "random_failed": result.failed,
+            })
         return row
 
 
@@ -231,6 +241,7 @@ def run_cem_for_function(
     min_prob: float,
     epsilon: float,
     allow_stop: bool,
+    evaluate_shifts: bool,
     rng: random.Random,
 ) -> dict[str, Any]:
     config = CEMConfig(
@@ -242,6 +253,7 @@ def run_cem_for_function(
         min_prob=min_prob,
         epsilon=epsilon,
         allow_stop=allow_stop,
+        evaluate_shifts=evaluate_shifts,
     )
     algorithm = build_function_search_algorithm("cem", cem_config=config)
     return run_search_for_function(
@@ -250,6 +262,75 @@ def run_cem_for_function(
         algorithm=algorithm,
         rng=rng,
     )
+
+
+def _run_search_job(
+    job: tuple[int, str, list[str], str, CEMConfig, int],
+) -> tuple[int, str, dict[str, Any]]:
+    index, bitcode_path_str, passes, algorithm_name, config, seed = job
+    algorithm = build_function_search_algorithm(algorithm_name, cem_config=config)
+    row = run_search_for_function(
+        Path(bitcode_path_str),
+        passes,
+        algorithm=algorithm,
+        rng=random.Random(seed),
+    )
+    return index, Path(bitcode_path_str).name, row
+
+
+def run_pass_search_jobs(
+    files: list[Path],
+    passes: list[str],
+    *,
+    algorithm_name: str,
+    cem_config: CEMConfig,
+    seed: int,
+    jobs: int,
+) -> list[dict[str, Any]]:
+    """Run per-function pass search, optionally in parallel."""
+    if jobs <= 1:
+        rng = random.Random(seed)
+        algorithm = build_function_search_algorithm(
+            algorithm_name,
+            cem_config=cem_config,
+        )
+        rows = []
+        for index, bitcode_path in enumerate(files, start=1):
+            print(f"[{index}/{len(files)}] {bitcode_path.name}", flush=True)
+            rows.append(
+                run_search_for_function(
+                    bitcode_path,
+                    passes,
+                    algorithm=algorithm,
+                    rng=rng,
+                )
+            )
+        return rows
+
+    rows_by_index: dict[int, dict[str, Any]] = {}
+    job_args = [
+        (
+            index,
+            str(bitcode_path),
+            passes,
+            algorithm_name,
+            cem_config,
+            seed + index * 1_000_003,
+        )
+        for index, bitcode_path in enumerate(files, start=1)
+    ]
+    completed = 0
+    with ProcessPoolExecutor(max_workers=jobs) as executor:
+        futures = [executor.submit(_run_search_job, job) for job in job_args]
+        for future in as_completed(futures):
+            index, function_name, row = future.result()
+            rows_by_index[index] = row
+            completed += 1
+            print(
+                f"[{completed}/{len(files)}] done {function_name}",
+                flush=True,
+            )
+    return [rows_by_index[index] for index in range(1, len(files) + 1)]
 
 
 def run_ppo_for_function(
@@ -313,6 +394,8 @@ def write_outputs(rows: list[dict[str, Any]], output_dir: Path, config: dict[str
         "oz_delta",
         "cem_best_size",
         "cem_delta",
+        "random_best_size",
+        "random_delta",
         "ppo_best_size",
         "ppo_best_delta",
         "ppo_final_size",
@@ -320,7 +403,10 @@ def write_outputs(rows: list[dict[str, Any]], output_dir: Path, config: dict[str
         "ppo_best_step",
         "cem_total_evaluated",
         "cem_failed",
+        "random_total_evaluated",
+        "random_failed",
         "cem_best_passes",
+        "random_best_passes",
         "ppo_best_passes",
         "ppo_passes",
         "oz_error",
@@ -331,7 +417,10 @@ def write_outputs(rows: list[dict[str, Any]], output_dir: Path, config: dict[str
         writer.writeheader()
         for row in rows:
             rendered = dict(row)
-            rendered["cem_best_passes"] = ",".join(row["cem_best_passes"])
+            rendered["cem_best_passes"] = ",".join(row.get("cem_best_passes") or [])
+            rendered["random_best_passes"] = ",".join(
+                row.get("random_best_passes") or []
+            )
             rendered["ppo_best_passes"] = ",".join(row.get("ppo_best_passes") or [])
             rendered["ppo_passes"] = ",".join(row.get("ppo_passes") or [])
             writer.writerow({name: rendered.get(name) for name in fieldnames})
@@ -340,21 +429,30 @@ def write_outputs(rows: list[dict[str, Any]], output_dir: Path, config: dict[str
 def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     if not rows:
         return {}
-    improved = [row for row in rows if row["cem_delta"] > 0]
+    algorithm = str(rows[0].get("search_algorithm") or "cem")
+    delta_key = f"{algorithm}_delta"
+    best_size_key = f"{algorithm}_best_size"
+    if delta_key not in rows[0]:
+        delta_key = "cem_delta"
+        best_size_key = "cem_best_size"
+        algorithm = "cem"
+    improved = [row for row in rows if row[delta_key] > 0]
     oz_available = [row for row in rows if row["oz_delta"] is not None]
     beats_oz = [
         row for row in oz_available
-        if row["cem_best_size"] < row["oz_size"]
+        if row[best_size_key] < row["oz_size"]
     ]
     summary = {
         "functions": len(rows),
-        "cem_improved": len(improved),
-        "cem_improved_percent": 100.0 * len(improved) / len(rows),
-        "cem_total_delta": sum(int(row["cem_delta"]) for row in rows),
-        "cem_mean_delta": sum(float(row["cem_delta"]) for row in rows) / len(rows),
+        f"{algorithm}_improved": len(improved),
+        f"{algorithm}_improved_percent": 100.0 * len(improved) / len(rows),
+        f"{algorithm}_total_delta": sum(int(row[delta_key]) for row in rows),
+        f"{algorithm}_mean_delta": (
+            sum(float(row[delta_key]) for row in rows) / len(rows)
+        ),
         "oz_available": len(oz_available),
-        "cem_beats_oz": len(beats_oz),
-        "cem_beats_oz_percent": 100.0 * len(beats_oz) / len(oz_available)
+        f"{algorithm}_beats_oz": len(beats_oz),
+        f"{algorithm}_beats_oz_percent": 100.0 * len(beats_oz) / len(oz_available)
         if oz_available
         else None,
         "oz_total_delta": sum(int(row["oz_delta"] or 0) for row in rows),
@@ -366,13 +464,13 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             row for row in ppo_rows
             if row.get("oz_size") is not None and row["ppo_best_size"] < row["oz_size"]
         ]
-        ppo_beats_cem = [
+        ppo_beats_algorithm = [
             row for row in ppo_rows
-            if row["ppo_best_size"] < row["cem_best_size"]
+            if row["ppo_best_size"] < row[best_size_key]
         ]
-        cem_beats_ppo = [
+        algorithm_beats_ppo = [
             row for row in ppo_rows
-            if row["cem_best_size"] < row["ppo_best_size"]
+            if row[best_size_key] < row["ppo_best_size"]
         ]
         summary.update({
             "ppo_available": len(ppo_rows),
@@ -384,16 +482,18 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             ),
             "ppo_beats_oz": len(ppo_beats_oz),
             "ppo_beats_oz_percent": 100.0 * len(ppo_beats_oz) / len(ppo_rows),
-            "ppo_beats_cem": len(ppo_beats_cem),
-            "cem_beats_ppo": len(cem_beats_ppo),
-            "cem_ties_ppo": len(ppo_rows) - len(ppo_beats_cem) - len(cem_beats_ppo),
+            f"ppo_beats_{algorithm}": len(ppo_beats_algorithm),
+            f"{algorithm}_beats_ppo": len(algorithm_beats_ppo),
+            f"{algorithm}_ties_ppo": (
+                len(ppo_rows) - len(ppo_beats_algorithm) - len(algorithm_beats_ppo)
+            ),
         })
     return summary
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run CEM pass search on per-function LLVM bitcode."
+        description="Run pass-sequence search on per-function LLVM bitcode."
     )
     parser.add_argument(
         "--dataset-dir",
@@ -405,13 +505,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(
         "--algorithm",
-        choices=["cem"],
+        choices=["cem", "random"],
         default="cem",
         help="Per-function pass-search algorithm.",
     )
     parser.add_argument("--steps", type=int, default=6)
     parser.add_argument("--iterations", type=int, default=3)
     parser.add_argument("--candidates", type=int, default=8)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of worker processes for per-function search.",
+    )
     parser.add_argument("--elite-size", type=int, default=3)
     parser.add_argument("--smoothing", type=float, default=0.65)
     parser.add_argument("--min-prob", type=float, default=0.001)
@@ -419,7 +525,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-stop-action",
         action="store_true",
-        help="Disable CEM STOP action and force fixed-length pass sequences.",
+        help="Disable STOP action and force fixed-length pass sequences.",
+    )
+    parser.add_argument(
+        "--sequence-shifts",
+        action="store_true",
+        help="Evaluate unique cyclic shifts of every sampled sequence.",
+    )
+    parser.add_argument(
+        "--no-sequence-shifts",
+        action="store_true",
+        help=(
+            "Deprecated compatibility flag. Sequence shifts are disabled by "
+            "default; use --sequence-shifts to enable them."
+        ),
     )
     parser.add_argument(
         "--ppo-config",
@@ -458,7 +577,6 @@ def main(argv: list[str] | None = None) -> int:
                 "Filtered invalid passes: " + ", ".join(invalid_passes),
                 flush=True,
             )
-    rng = random.Random(args.seed)
     cem_config = CEMConfig(
         steps=args.steps,
         iterations=args.iterations,
@@ -468,20 +586,21 @@ def main(argv: list[str] | None = None) -> int:
         min_prob=args.min_prob,
         epsilon=args.epsilon,
         allow_stop=not args.no_stop_action,
+        evaluate_shifts=args.sequence_shifts and not args.no_sequence_shifts,
     )
-    algorithm = build_function_search_algorithm(args.algorithm, cem_config=cem_config)
-    rows = []
     ppo_config = Path(args.ppo_config).resolve() if args.ppo_config else None
     ppo_checkpoint = Path(args.ppo_checkpoint).resolve() if args.ppo_checkpoint else None
-    for index, bitcode_path in enumerate(files, start=1):
-        print(f"[{index}/{len(files)}] {bitcode_path.name}", flush=True)
-        row = run_search_for_function(
-            bitcode_path,
-            passes,
-            algorithm=algorithm,
-            rng=rng,
-        )
-        if ppo_config and ppo_checkpoint:
+    rows = run_pass_search_jobs(
+        files,
+        passes,
+        algorithm_name=args.algorithm,
+        cem_config=cem_config,
+        seed=args.seed,
+        jobs=args.jobs,
+    )
+    if ppo_config and ppo_checkpoint:
+        for index, (bitcode_path, row) in enumerate(zip(files, rows), start=1):
+            print(f"[ppo {index}/{len(files)}] {bitcode_path.name}", flush=True)
             try:
                 row.update(
                     run_ppo_for_function(
@@ -501,7 +620,6 @@ def main(argv: list[str] | None = None) -> int:
                     "ppo_passes": [],
                     "ppo_error": f"{type(exc).__name__}: {exc}",
                 })
-        rows.append(row)
     config = {
         "dataset_dir": str(dataset_dir),
         "limit": args.limit,
@@ -514,7 +632,9 @@ def main(argv: list[str] | None = None) -> int:
         "smoothing": args.smoothing,
         "min_prob": args.min_prob,
         "epsilon": args.epsilon,
+        "jobs": args.jobs,
         "allow_stop": not args.no_stop_action,
+        "evaluate_shifts": args.sequence_shifts and not args.no_sequence_shifts,
         "pass_count": len(passes),
         "invalid_passes_filtered": invalid_passes,
         "ppo_config": str(ppo_config) if ppo_config else None,

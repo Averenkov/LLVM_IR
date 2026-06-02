@@ -26,6 +26,7 @@ class CEMConfig:
     min_prob: float = 0.001
     epsilon: float = 0.05
     allow_stop: bool = True
+    evaluate_shifts: bool = False
 
 
 @dataclass
@@ -158,22 +159,26 @@ def search_pass_sequence_for_function(
         evaluated = []
         for candidate in range(config.candidates):
             actions = search.sample()
-            selected_passes = actions_to_passes(
-                actions,
-                passes,
-                stop_action=search.stop_action,
+            candidates_to_evaluate = (
+                cyclic_shifts(actions) if config.evaluate_shifts else [actions]
             )
-            result = evaluate_candidate(
-                actions,
-                selected_passes,
-                f"iter{iteration}_cand{candidate}",
-            )
-            total_evaluated += 1
-            if result.size is None:
-                failed += 1
-            elif best is None or result.size < (best.size or baseline_size + 1):
-                best = result
-            evaluated.append(result)
+            for shift_index, shifted_actions in enumerate(candidates_to_evaluate):
+                selected_passes = actions_to_passes(
+                    shifted_actions,
+                    passes,
+                    stop_action=search.stop_action,
+                )
+                result = evaluate_candidate(
+                    shifted_actions,
+                    selected_passes,
+                    f"iter{iteration}_cand{candidate}_shift{shift_index}",
+                )
+                total_evaluated += 1
+                if result.size is None:
+                    failed += 1
+                elif best is None or result.size < (best.size or baseline_size + 1):
+                    best = result
+                evaluated.append(result)
         search.update(evaluated)
 
     return CEMResult(
@@ -203,6 +208,22 @@ def actions_to_passes(
             break
         selected.append(passes[action])
     return selected
+
+
+def cyclic_shifts(actions: list[int]) -> list[list[int]]:
+    """Return unique cyclic shifts of an action sequence, preserving order."""
+    if not actions:
+        return [[]]
+    shifts = []
+    seen = set()
+    for offset in range(len(actions)):
+        shifted = actions[offset:] + actions[:offset]
+        key = tuple(shifted)
+        if key in seen:
+            continue
+        seen.add(key)
+        shifts.append(shifted)
+    return shifts
 
 
 def sample_categorical(rng: random.Random, probs: list[float]) -> int:
