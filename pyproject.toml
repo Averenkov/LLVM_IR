@@ -17,6 +17,11 @@ dev = ["pytest>=8.0"]
 [project.scripts]
 llvm-ir-build-dataset = "llvm_ir.stages.dataset.builder:main"
 llvm-ir-pass-search = "llvm_ir.stages.function_search.pass_search:main"
+llvm-ir-build-order-graphs = "llvm_ir.stages.translation_unit.order_graph:main"
+llvm-ir-run-tu-heuristics = "llvm_ir.stages.translation_unit.path_heuristics:main"
+llvm-ir-eval-tu-heuristics = "llvm_ir.stages.translation_unit.evaluate:main"
+llvm-ir-run-aggregation = "llvm_ir.scripts.run_aggregation:main"
+llvm-ir-export-aggregation-paths = "llvm_ir.heuristics.aggregation.export_paths:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

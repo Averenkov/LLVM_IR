@@ -14,6 +14,11 @@
    собирать общую последовательность pass-ов на всю единицу трансляции из
    per-function результатов.
 
+Первый шаг stage 3 - построение pass-order graph по найденным per-function
+последовательностям. Для каждого benchmark-а строится ориентированный граф:
+ребро `p_i -> p_j` означает, что в хотя бы одной лучшей последовательности
+функции benchmark-а pass `p_i` встречался раньше pass `p_j`.
+
 В корне пакета оставлены совместимые модули `dataset_builder.py`, `cem.py`,
 `pass_search.py` и другие тонкие обёртки, чтобы старые импорты продолжали
 работать.
@@ -101,6 +106,9 @@ PYTHONPATH=src python3 -m llvm_ir.stages.function_search.pass_search \
 
 CEM вынесен в `src/llvm_ir/stages/function_search/cem.py`: это алгоритм поиска
 последовательности pass-ов для одной функции.
+Random Search вынесен в `src/llvm_ir/stages/function_search/random_search.py`:
+он равномерно сэмплирует последовательности pass-ов без обучения вероятностного
+распределения и полезен как простой baseline для CEM.
 `src/llvm_ir/stages/function_search/pass_search.py` оставляет на себе
 LLVM-обвязку, замер `.text` и CLI, поэтому рядом можно добавлять другие
 алгоритмы поиска с таким же per-function интерфейсом.
@@ -110,9 +118,76 @@ LLVM-обвязку, замер `.text` и CLI, поэтому рядом мож
 prefix внутри цепочки. Для сравнения со старым fixed-length режимом можно
 добавить `--no-stop-action`.
 
+По умолчанию CEM оценивает ровно `--iterations * --candidates` сэмплов на
+функцию. Дополнительная оценка всех уникальных циклических сдвигов отключена,
+потому что резко увеличивает число реальных LLVM-замеров. Старый расширенный
+режим можно включить флагом `--sequence-shifts`; тогда максимум замеров на
+функцию становится `--iterations * --candidates * --steps`.
+
+Для запуска Random Search вместо CEM:
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.stages.function_search.pass_search \
+  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --algorithm random \
+  --limit 30 \
+  --steps 6 \
+  --iterations 3 \
+  --candidates 8 \
+  --jobs 8
+```
+
+`--jobs` включает параллельную обработку функций. Для длинных full-dataset
+запусков это заметно быстрее, а строки в итоговом JSON всё равно сохраняются в
+детерминированном порядке.
+
 PPO-метод из `llvm-minimizer` сравнивается с тем же датасетом после обучения или
 при наличии checkpoint-а. В `llvm-minimizer` один входной `.bc` считается одним
 эпизодом, поэтому per-function датасет подходит напрямую.
+
+## Графы Порядка Pass-Ов
+
+После запуска per-function поиска можно построить графы для stage 3:
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.order_graph \
+  --input experiments/pass_search_compare/cem_shifts_all_seed7/comparison.json \
+  --algorithm cem \
+  --weight-mode count \
+  --output experiments/translation_unit_graphs/cem_shifts_all_seed7/order_graphs.json
+```
+
+Для каждого benchmark-а выходной JSON содержит:
+
+- `nodes` - pass-ы, встретившиеся в найденных последовательностях;
+- `edges` - ориентированные отношения порядка `source -> target`;
+- `weight` - сила поддержки отношения.
+
+Режимы веса:
+
+- `--weight-mode count` - каждое function-level подтверждение ребра добавляет `1`;
+- `--weight-mode delta` - каждое подтверждение добавляет выигрыш функции
+  `baseline_size - best_size`, поэтому последовательности с большим выигрышем
+  сильнее влияют на граф.
+
+После построения графов можно запустить эвристики поиска общего пути pass-ов:
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.path_heuristics \
+  --input experiments/translation_unit_graphs/cem_shifts_all_seed7/order_graphs_delta.json \
+  --heuristics all \
+  --max-length 12 \
+  --output experiments/translation_unit_heuristics/cem_shifts_all_seed7/delta/all_heuristics.json
+```
+
+Доступные эвристики:
+
+- `greedy_consensus` - сортировка pass-ов по разнице исходящей и входящей поддержки;
+- `dag_longest_path` - удаление конфликтных направлений и longest path в DAG;
+- `beam_search` - beam search по путям с учётом поддержки и штрафом за конфликты.
+- `weighted_toposort` - взвешенная топологическая сортировка; на DAG уважает
+  входящие ограничения, а в циклах выбирает pass с лучшей разницей исходящей и
+  входящей поддержки.
 
 Starter-конфиг для обучения PPO:
 
