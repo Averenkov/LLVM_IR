@@ -138,14 +138,14 @@ run_algorithm() {
     --output-dir "$pass_dir"
 
   log "=== $algorithm: build count graph ==="
-  run_cmd python3 -m llvm_ir.stages.translation_unit.order_graph \
+  run_cmd python3 -m llvm_ir.stages.translation_unit.graph.order_graph \
     --input "$pass_dir/comparison.json" \
     --algorithm "$algorithm" \
     --weight-mode count \
     --output "$graph_dir/order_graphs_count.json"
 
   log "=== $algorithm: build delta graph ==="
-  run_cmd python3 -m llvm_ir.stages.translation_unit.order_graph \
+  run_cmd python3 -m llvm_ir.stages.translation_unit.graph.order_graph \
     --input "$pass_dir/comparison.json" \
     --algorithm "$algorithm" \
     --weight-mode delta \
@@ -172,7 +172,7 @@ run_algorithm() {
 
   if [[ "$RUN_AGGREGATION_GRAPH_ONLY" == "1" ]]; then
     log "=== $algorithm: new aggregation package graph-only comparison ==="
-    run_cmd python3 -m scripts.run_aggregation \
+    run_cmd python3 -m llvm_ir.scripts.run_aggregation \
       --dataset "$pass_dir/comparison.json" \
       --algorithm "$algorithm" \
       --all \

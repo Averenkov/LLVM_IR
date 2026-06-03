@@ -28,8 +28,6 @@ Markov-style ordering, voting ensemble и комбинированный `hpp_ea
 функции benchmark-а pass `p_i` встречался раньше pass `p_j`.
 
 В корне пакета оставлены совместимые модули `dataset_builder.py`, `cem.py`,
-`pass_search.py` и другие тонкие обёртки, чтобы старые импорты продолжали
-работать.
 
 ## Установка
 
@@ -228,7 +226,7 @@ PPO-метод из `llvm-minimizer` сравнивается с тем же д�
 После запуска per-function поиска можно построить графы для stage 3:
 
 ```bash
-PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.order_graph \
+PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.graph.order_graph \
   --input experiments/pass_search_compare/cem_shifts_all_seed7/comparison.json \
   --algorithm cem \
   --weight-mode count \

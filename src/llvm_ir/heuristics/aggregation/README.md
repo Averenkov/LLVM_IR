@@ -24,7 +24,7 @@ pass sequences.
 Graph-only comparison:
 
 ```bash
-PYTHONPATH=src python3 -m scripts.run_aggregation \
+PYTHONPATH=src python3 -m llvm_ir.scripts.run_aggregation \
   --dataset experiments/pass_search_compare/cem_shifts_all_seed7/comparison.json \
   --all \
   --compare \
@@ -35,7 +35,7 @@ PYTHONPATH=src python3 -m scripts.run_aggregation \
 Single heuristic:
 
 ```bash
-PYTHONPATH=src python3 -m scripts.run_aggregation \
+PYTHONPATH=src python3 -m llvm_ir.scripts.run_aggregation \
   --dataset experiments/pass_search_compare/cem_shifts_all_seed7/comparison.json \
   --heuristic hpp_eades_topk \
   --no-tu-eval \

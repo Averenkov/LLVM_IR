@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from llvm_ir.stages.translation_unit.contracts import FunctionPassResult, TranslationUnitPlan
-from llvm_ir.stages.translation_unit.order_graph import (
+from llvm_ir.stages.translation_unit.graph.order_graph import (
     PassOrderGraph,
     benchmark_id_from_function_name,
     build_pass_order_graph,
@@ -20,7 +20,7 @@ from llvm_ir.stages.translation_unit.order_graph import (
     write_graph_report,
 )
 from llvm_ir.stages.translation_unit.beam_search import beam_search_path
-from llvm_ir.stages.translation_unit.cycle_breaking_max_path import (
+from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
     cycle_breaking_max_path,
 )

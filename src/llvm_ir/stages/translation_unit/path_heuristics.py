@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from .beam_search import BeamSearchConfig, beam_search_path
-from .cycle_breaking_max_path import (
+from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
     cycle_breaking_max_path,
 )
 from .dag_longest_path import DAGLongestPathConfig, dag_longest_path
 from .greedy_consensus import GreedyConsensusConfig, greedy_consensus_path
-from .order_graph import PassOrderGraph, load_graphs_from_report
+from .graph.order_graph import PassOrderGraph, load_graphs_from_report
 from .path_scoring import score_path
 from .weighted_toposort import WeightedToposortConfig, weighted_toposort_path
 

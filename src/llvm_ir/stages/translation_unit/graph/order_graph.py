@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from .contracts import FunctionPassResult
+from ..contracts import FunctionPassResult
 
 WeightMode = Literal["count", "delta"]
 

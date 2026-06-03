@@ -8,7 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from llvm_ir.stages.translation_unit.order_graph import benchmark_id_from_function_name
+from llvm_ir.stages.translation_unit.graph.order_graph import benchmark_id_from_function_name
 
 from .base import Dataset, PerFunctionResult, build_pass_graph, load_dataset_from_pass_search_report
 from .graph_utils import blended_weights, path_graph_score

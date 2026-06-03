@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .order_graph import PassOrderGraph
+from .graph.order_graph import PassOrderGraph
 
 
 @dataclass(frozen=True)

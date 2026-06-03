@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .order_graph import PassOrderGraph
+from llvm_ir.stages.translation_unit.graph.order_graph import PassOrderGraph
 
 
 @dataclass(frozen=True)
