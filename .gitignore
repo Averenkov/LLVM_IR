@@ -4,3 +4,6 @@ __pycache__/
 build_workspace/
 experiments/
 runs/
+.venv/
+.local/
+src/*.egg-info/

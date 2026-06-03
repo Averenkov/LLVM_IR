@@ -18,6 +18,14 @@ STEPS="${STEPS:-8}"
 ITERATIONS="${ITERATIONS:-6}"
 CANDIDATES="${CANDIDATES:-32}"
 JOBS="${JOBS:-8}"
+RUN_CEM="${RUN_CEM:-1}"
+RUN_RANDOM="${RUN_RANDOM:-1}"
+
+RANDOM_STEPS="${RANDOM_STEPS:-$STEPS}"
+RANDOM_ITERATIONS="${RANDOM_ITERATIONS:-$((ITERATIONS))}"
+RANDOM_CANDIDATES="${RANDOM_CANDIDATES:-$((CANDIDATES))}"
+RANDOM_JOBS="${RANDOM_JOBS:-$JOBS}"
+RANDOM_SEQUENCE_SHIFTS="${RANDOM_SEQUENCE_SHIFTS:-0}"
 
 MAX_LENGTH="${MAX_LENGTH:-12}"
 BEAM_WIDTH="${BEAM_WIDTH:-16}"
@@ -63,6 +71,13 @@ STEPS=$STEPS
 ITERATIONS=$ITERATIONS
 CANDIDATES=$CANDIDATES
 JOBS=$JOBS
+RUN_CEM=$RUN_CEM
+RUN_RANDOM=$RUN_RANDOM
+RANDOM_STEPS=$RANDOM_STEPS
+RANDOM_ITERATIONS=$RANDOM_ITERATIONS
+RANDOM_CANDIDATES=$RANDOM_CANDIDATES
+RANDOM_JOBS=$RANDOM_JOBS
+RANDOM_SEQUENCE_SHIFTS=$RANDOM_SEQUENCE_SHIFTS
 MAX_LENGTH=$MAX_LENGTH
 BEAM_WIDTH=$BEAM_WIDTH
 RUN_TU_EVAL=$RUN_TU_EVAL
@@ -94,16 +109,32 @@ run_algorithm() {
     "$aggregation_paths_dir" \
     "$aggregation_eval_dir"
 
-  log "=== $algorithm: per-function pass search ==="
+  local search_steps="$STEPS"
+  local search_iterations="$ITERATIONS"
+  local search_candidates="$CANDIDATES"
+  local search_jobs="$JOBS"
+  local sequence_shift_args=()
+  if [[ "$algorithm" == "random" ]]; then
+    search_steps="$RANDOM_STEPS"
+    search_iterations="$RANDOM_ITERATIONS"
+    search_candidates="$RANDOM_CANDIDATES"
+    search_jobs="$RANDOM_JOBS"
+    if [[ "$RANDOM_SEQUENCE_SHIFTS" == "1" ]]; then
+      sequence_shift_args+=(--sequence-shifts)
+    fi
+  fi
+
+  log "=== $algorithm: per-function pass search (steps=$search_steps iterations=$search_iterations candidates=$search_candidates jobs=$search_jobs) ==="
   run_cmd python3 -m llvm_ir.stages.function_search.pass_search \
     --dataset-dir "$DATASET_DIR" \
     --algorithm "$algorithm" \
     --limit "$LIMIT" \
     --seed "$SEED" \
-    --steps "$STEPS" \
-    --iterations "$ITERATIONS" \
-    --candidates "$CANDIDATES" \
-    --jobs "$JOBS" \
+    --steps "$search_steps" \
+    --iterations "$search_iterations" \
+    --candidates "$search_candidates" \
+    --jobs "$search_jobs" \
+    "${sequence_shift_args[@]}" \
     --output-dir "$pass_dir"
 
   log "=== $algorithm: build count graph ==="
@@ -181,14 +212,19 @@ run_algorithm() {
 
 write_final_summary() {
   log "=== write final summary ==="
-  python3 - "$RUN_DIR" <<'PY' | tee -a "$LOG"
+  python3 - "$RUN_DIR" "$@" <<'PY' | tee -a "$LOG"
 import json
 import sys
 from pathlib import Path
 
 run_dir = Path(sys.argv[1])
-summary = {"run_dir": str(run_dir), "algorithms": {}}
-for algorithm in ("cem", "random"):
+algorithms = sys.argv[2:] or ["cem", "random"]
+summary = {
+    "run_dir": str(run_dir),
+    "selected_algorithms": algorithms,
+    "algorithms": {},
+}
+for algorithm in algorithms:
     root = run_dir / algorithm
     data = {}
     pass_report = root / "pass_search" / "comparison.json"
@@ -224,12 +260,25 @@ print(json.dumps({"summary": str(out)}, indent=2))
 PY
 }
 
-log "Nightly big run started"
+SELECTED_ALGORITHMS=()
+if [[ "$RUN_CEM" == "1" ]]; then
+  SELECTED_ALGORITHMS+=(cem)
+fi
+if [[ "$RUN_RANDOM" == "1" ]]; then
+  SELECTED_ALGORITHMS+=(random)
+fi
+if [[ "${#SELECTED_ALGORITHMS[@]}" -eq 0 ]]; then
+  log "No algorithms selected: set RUN_CEM=1 and/or RUN_RANDOM=1"
+  exit 1
+fi
+
+log "Nightly big run started: algorithms=${SELECTED_ALGORITHMS[*]}"
 write_run_config
 
-run_algorithm cem
-run_algorithm random
-write_final_summary
+for algorithm in "${SELECTED_ALGORITHMS[@]}"; do
+  run_algorithm "$algorithm"
+done
+write_final_summary "${SELECTED_ALGORITHMS[@]}"
 
 log "Nightly big run finished successfully"
 log "Run directory: $RUN_DIR"

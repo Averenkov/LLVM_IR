@@ -76,7 +76,10 @@ def _make_compiler_gym_env() -> Any:
             "compiler_gym is required to restore whole benchmark bitcode. "
             "Run this command from an environment with compiler_gym installed."
         ) from exc
-    return compiler_gym.make("llvm-v0")
+    try:
+        return compiler_gym.make("llvm-v0", disable_env_checker=True)
+    except TypeError:
+        return compiler_gym.make("llvm-v0")
 
 
 def _lookup_dataset(env: Any, dataset_key: str) -> Any:

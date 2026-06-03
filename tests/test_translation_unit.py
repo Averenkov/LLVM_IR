@@ -9,6 +9,7 @@ from pathlib import Path
 
 from llvm_ir.stages.translation_unit.contracts import FunctionPassResult, TranslationUnitPlan
 from llvm_ir.stages.translation_unit.order_graph import (
+    PassOrderGraph,
     benchmark_id_from_function_name,
     build_pass_order_graph,
     build_pass_order_graphs_by_benchmark,
@@ -19,6 +20,10 @@ from llvm_ir.stages.translation_unit.order_graph import (
     write_graph_report,
 )
 from llvm_ir.stages.translation_unit.beam_search import beam_search_path
+from llvm_ir.stages.translation_unit.cycle_breaking_max_path import (
+    CycleBreakingMaxPathConfig,
+    cycle_breaking_max_path,
+)
 from llvm_ir.stages.translation_unit.dag_longest_path import dag_longest_path
 from llvm_ir.stages.translation_unit.greedy_consensus import greedy_consensus_path
 from llvm_ir.stages.translation_unit.path_heuristics import (
@@ -437,6 +442,29 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(dag_longest_path(graph), ["a", "b", "c"])
 
+    def test_cycle_breaking_max_path_removes_weakest_cycle_edge(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b"], support_weight=5)
+        graph.add_sequence(["b", "c"], support_weight=4)
+        graph.add_sequence(["c", "a"], support_weight=1)
+        graph.add_sequence(["c", "d"], support_weight=6)
+
+        self.assertEqual(cycle_breaking_max_path(graph), ["a", "b", "c", "d"])
+
+    def test_cycle_breaking_max_path_respects_max_length(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b"], support_weight=5)
+        graph.add_sequence(["b", "c"], support_weight=4)
+        graph.add_sequence(["c", "a"], support_weight=1)
+        graph.add_sequence(["c", "d"], support_weight=6)
+
+        path = cycle_breaking_max_path(
+            graph,
+            config=CycleBreakingMaxPathConfig(max_length=3),
+        )
+
+        self.assertEqual(path, ["b", "c", "d"])
+
     def test_beam_search_finds_high_net_score_path(self) -> None:
         graph = build_pass_order_graph(
             [
@@ -465,6 +493,7 @@ class TranslationUnitContractTests(unittest.TestCase):
             [
                 "greedy_consensus",
                 "dag_longest_path",
+                "cycle_breaking_max_path",
                 "beam_search",
                 "weighted_toposort",
             ],
@@ -476,11 +505,12 @@ class TranslationUnitContractTests(unittest.TestCase):
             {
                 "greedy_consensus",
                 "dag_longest_path",
+                "cycle_breaking_max_path",
                 "beam_search",
                 "weighted_toposort",
             },
         )
-        self.assertEqual(len(report["results"]), 4)
+        self.assertEqual(len(report["results"]), 5)
         self.assertTrue(all(item["path"] for item in report["results"]))
 
     def test_parse_heuristics_expands_all_and_csv(self) -> None:
@@ -489,6 +519,7 @@ class TranslationUnitContractTests(unittest.TestCase):
             [
                 "greedy_consensus",
                 "dag_longest_path",
+                "cycle_breaking_max_path",
                 "beam_search",
                 "weighted_toposort",
             ],

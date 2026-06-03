@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from .beam_search import BeamSearchConfig, beam_search_path
+from .cycle_breaking_max_path import (
+    CycleBreakingMaxPathConfig,
+    cycle_breaking_max_path,
+)
 from .dag_longest_path import DAGLongestPathConfig, dag_longest_path
 from .greedy_consensus import GreedyConsensusConfig, greedy_consensus_path
 from .order_graph import PassOrderGraph, load_graphs_from_report
@@ -42,6 +46,14 @@ def run_heuristic(
             config=DAGLongestPathConfig(
                 min_net_weight=config.min_net_weight,
                 max_length=config.max_length,
+            ),
+        )
+    if heuristic == "cycle_breaking_max_path":
+        return cycle_breaking_max_path(
+            graph,
+            config=CycleBreakingMaxPathConfig(
+                max_length=config.max_length,
+                min_edge_weight=config.min_edge_weight,
             ),
         )
     if heuristic == "beam_search":
@@ -141,6 +153,7 @@ def parse_heuristics(value: str) -> list[str]:
         return [
             "greedy_consensus",
             "dag_longest_path",
+            "cycle_breaking_max_path",
             "beam_search",
             "weighted_toposort",
         ]
@@ -157,7 +170,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--heuristics",
         default="all",
         help="Comma-separated heuristics or all. Available: "
-        "greedy_consensus,dag_longest_path,beam_search,weighted_toposort.",
+        "greedy_consensus,dag_longest_path,cycle_breaking_max_path,"
+        "beam_search,weighted_toposort.",
     )
     parser.add_argument("--max-length", type=int, default=12)
     parser.add_argument("--beam-width", type=int, default=16)

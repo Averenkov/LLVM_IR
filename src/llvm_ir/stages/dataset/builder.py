@@ -219,7 +219,10 @@ def _make_compiler_gym_env() -> Any:
             "compiler_gym is required to build datasets. Install the optional "
             "dependency with: pip install '.[compiler-gym]'"
         ) from exc
-    return compiler_gym.make("llvm-v0")
+    try:
+        return compiler_gym.make("llvm-v0", disable_env_checker=True)
+    except TypeError:
+        return compiler_gym.make("llvm-v0")
 
 
 def build_dataset(
