@@ -262,6 +262,8 @@ PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.path_heuristics \
 - `dag_longest_path` - удаление конфликтных направлений и longest path в DAG;
 - `cycle_breaking_max_path` - пока есть цикл, удаляет минимальное ребро цикла,
   затем делает topological sort и ищет maximum-weight path в полученном DAG;
+- `random_walk` - делает набор случайных блужданий по взвешенным рёбрам graph-а
+  и выбирает лучший найденный путь по graph score;
 - `beam_search` - beam search по путям с учётом поддержки и штрафом за конфликты;
 - `weighted_toposort` - взвешенная топологическая сортировка; на DAG уважает
   входящие ограничения, а в циклах выбирает pass с лучшей разницей исходящей и

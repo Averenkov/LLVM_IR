@@ -24,6 +24,10 @@ from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
     cycle_breaking_max_path,
 )
+from llvm_ir.heuristics.translation_unit.random_walk import (
+    RandomWalkPathConfig,
+    random_walk_path,
+)
 from llvm_ir.stages.translation_unit.dag_longest_path import dag_longest_path
 from llvm_ir.stages.translation_unit.greedy_consensus import greedy_consensus_path
 from llvm_ir.stages.translation_unit.path_heuristics import (
@@ -465,6 +469,31 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(path, ["b", "c", "d"])
 
+    def test_random_walk_path_is_reproducible_and_uses_graph_edges(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b"], support_weight=10)
+        graph.add_sequence(["b", "c"], support_weight=10)
+        graph.add_sequence(["a", "d"], support_weight=1)
+
+        config = RandomWalkPathConfig(max_length=3, walks=64, seed=7)
+        first = random_walk_path(graph, config=config)
+        second = random_walk_path(graph, config=config)
+
+        self.assertEqual(first, second)
+        self.assertEqual(first, ["a", "b", "c"])
+
+    def test_random_walk_path_respects_max_length(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b", "c", "d"], support_weight=10)
+
+        path = random_walk_path(
+            graph,
+            config=RandomWalkPathConfig(max_length=2, walks=32, seed=3),
+        )
+
+        self.assertLessEqual(len(path), 2)
+        self.assertTrue(path)
+
     def test_beam_search_finds_high_net_score_path(self) -> None:
         graph = build_pass_order_graph(
             [
@@ -494,6 +523,7 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "random_walk",
                 "beam_search",
                 "weighted_toposort",
             ],
@@ -506,11 +536,12 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "random_walk",
                 "beam_search",
                 "weighted_toposort",
             },
         )
-        self.assertEqual(len(report["results"]), 5)
+        self.assertEqual(len(report["results"]), 6)
         self.assertTrue(all(item["path"] for item in report["results"]))
 
     def test_parse_heuristics_expands_all_and_csv(self) -> None:
@@ -520,6 +551,7 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "random_walk",
                 "beam_search",
                 "weighted_toposort",
             ],
