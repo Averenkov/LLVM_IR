@@ -34,6 +34,7 @@ class PassOrderGraph:
     sequence_count: int = 0
     nodes: set[str] = field(default_factory=set)
     edge_counts: dict[tuple[str, str], int] = field(default_factory=dict)
+    start_counts: dict[str, int] = field(default_factory=dict)
 
     def add_sequence(self, passes: list[str], *, support_weight: int = 1) -> None:
         """Add all pairwise order constraints from one pass sequence."""
@@ -44,6 +45,7 @@ class PassOrderGraph:
         self.nodes.update(passes)
         if support_weight <= 0:
             return
+        self.start_counts[passes[0]] = self.start_counts.get(passes[0], 0) + support_weight
         seen_pairs: set[tuple[str, str]] = set()
         for left_index, source in enumerate(passes):
             for target in passes[left_index + 1 :]:
@@ -75,6 +77,10 @@ class PassOrderGraph:
             "function_count": self.function_count,
             "sequence_count": self.sequence_count,
             "nodes": sorted(self.nodes),
+            "start_counts": [
+                {"pass": pass_name, "weight": weight}
+                for pass_name, weight in sorted(self.start_counts.items())
+            ],
             "edges": [
                 {
                     "source": edge.source,
@@ -207,6 +213,14 @@ def pass_order_graph_from_dict(payload: dict[str, Any]) -> PassOrderGraph:
         sequence_count=int(payload.get("sequence_count", 0)),
         nodes=set(payload.get("nodes") or []),
     )
+    raw_start_counts = payload.get("start_counts") or []
+    if isinstance(raw_start_counts, dict):
+        graph.start_counts.update(
+            {str(pass_name): int(weight) for pass_name, weight in raw_start_counts.items()}
+        )
+    else:
+        for item in raw_start_counts:
+            graph.start_counts[str(item["pass"])] = int(item["weight"])
     for edge in payload.get("edges") or []:
         graph.edge_counts[(str(edge["source"]), str(edge["target"]))] = int(
             edge["weight"]

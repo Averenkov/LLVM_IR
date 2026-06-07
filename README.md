@@ -262,6 +262,8 @@ PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.path_heuristics \
 - `dag_longest_path` - удаление конфликтных направлений и longest path в DAG;
 - `cycle_breaking_max_path` - пока есть цикл, удаляет минимальное ребро цикла,
   затем делает topological sort и ищет maximum-weight path в полученном DAG;
+- `exhaustive_len6` - перебирает все простые directed paths из 6 pass-ов и
+  выбирает путь с максимальным graph score;
 - `random_walk` - делает набор случайных блужданий по взвешенным рёбрам graph-а
   и выбирает лучший найденный путь по graph score;
 - `beam_search` - beam search по путям с учётом поддержки и штрафом за конфликты;
@@ -287,6 +289,36 @@ PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate \
 
 Evaluation применяет pass-ы по одному, измеряет `.text` после каждого шага и
 сохраняет как финальный размер всей последовательности, так и лучший префикс.
+
+Для top-k TU-эвристик можно дополнительно считать не только процент выигрыша по
+размеру `.text`, но и процент по количеству машинных инструкций. Для этого
+используется флаг `--measure-instructions`: evaluator после каждого префикса
+собирает объектный файл через `llc`, дизассемблирует его через `llvm-objdump -d`
+и считает строки инструкций.
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate_topk_paths \
+  --graph runs/full_random_heuristic_20260602_231430/random/translation_unit_graphs/order_graphs_delta_with_starts.json \
+  --bitcode-dir experiments/translation_unit_bitcode/autotune_stratified_30 \
+  --output runs/cycle_top10_starts_top10_paths_instr/tu_eval.json \
+  --heuristic cycle_breaking_top_starts_top_paths \
+  --top-starts 10 \
+  --paths-per-start 10 \
+  --max-length 12 \
+  --min-edge-weight 1 \
+  --measure-instructions
+```
+
+В `summary` при таком запуске появляются дополнительные поля:
+
+- `weighted_best_percent` - взвешенный процент выигрыша по размеру `.text`;
+- `weighted_best_instruction_percent` - взвешенный процент выигрыша по числу
+  машинных инструкций;
+- `total_best_delta` - суммарный выигрыш по `.text`;
+- `total_best_instruction_delta` - суммарный выигрыш по количеству машинных
+  инструкций;
+- `beats_oz_best_instruction` - сколько benchmark-ов лучше `-Oz` по числу
+  машинных инструкций.
 
 ## Расширенные Эвристики Агрегации
 

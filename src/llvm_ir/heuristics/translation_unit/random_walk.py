@@ -22,6 +22,17 @@ def random_walk_path(
     config: RandomWalkPathConfig | None = None,
 ) -> list[str]:
     """Sample weighted walks and return the best-scoring path found."""
+    paths = random_walk_top_paths(graph, config=config, top_k=1)
+    return paths[0] if paths else []
+
+
+def random_walk_top_paths(
+    graph: PassOrderGraph,
+    *,
+    config: RandomWalkPathConfig | None = None,
+    top_k: int = 10,
+) -> list[list[str]]:
+    """Sample weighted walks and return top unique paths by graph score."""
     if config is None:
         config = RandomWalkPathConfig()
     nodes = sorted(graph.nodes)
@@ -34,8 +45,7 @@ def random_walk_path(
     start_weights = [_start_weight(graph, node, adjacent) for node in nodes]
     rng = random.Random(config.seed)
 
-    best_path: list[str] = []
-    best_key: tuple[int, int, int, int, tuple[str, ...]] | None = None
+    candidates: dict[tuple[str, ...], tuple[int, int, int, int, tuple[str, ...]]] = {}
     for _ in range(walks):
         path = _sample_walk(
             nodes,
@@ -44,12 +54,17 @@ def random_walk_path(
             max_length=max_length,
             rng=rng,
         )
-        key = _score_key(graph, path)
-        if best_key is None or key > best_key:
-            best_path = path
-            best_key = key
+        if not path:
+            continue
+        key = tuple(path)
+        candidates[key] = _score_key(graph, path)
 
-    return best_path
+    ranked = sorted(
+        candidates,
+        key=lambda path: (candidates[path], path),
+        reverse=True,
+    )
+    return [list(path) for path in ranked[: max(1, top_k)]]
 
 
 def _sample_walk(

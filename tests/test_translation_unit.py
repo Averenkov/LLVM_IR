@@ -22,7 +22,14 @@ from llvm_ir.stages.translation_unit.graph.order_graph import (
 from llvm_ir.stages.translation_unit.beam_search import beam_search_path
 from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
+    cycle_breaking_diverse_start_paths,
     cycle_breaking_max_path,
+    cycle_breaking_max_paths,
+    cycle_breaking_top_start_paths,
+)
+from llvm_ir.heuristics.translation_unit.exhaustive_path import (
+    ExhaustivePathConfig,
+    exhaustive_fixed_length_path,
 )
 from llvm_ir.heuristics.translation_unit.random_walk import (
     RandomWalkPathConfig,
@@ -38,6 +45,7 @@ from llvm_ir.stages.translation_unit.path_heuristics import (
 )
 from llvm_ir.stages.translation_unit.path_scoring import score_path
 from llvm_ir.stages.translation_unit.weighted_toposort import weighted_toposort_path
+from llvm_ir.stages.translation_unit import evaluate_topk_paths
 from llvm_ir.stages.translation_unit.evaluate import (
     TranslationUnitSequence,
     benchmark_uri_from_id,
@@ -119,6 +127,7 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(graph.weight_mode, "delta")
         self.assertEqual(graph.edge_weight("a", "b"), 5)
+        self.assertEqual(graph.start_counts["a"], 5)
         self.assertEqual(graph.function_count, 3)
         self.assertEqual(graph.sequence_count, 3)
 
@@ -159,6 +168,7 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(rendered["benchmark"], "demo-v0_unit")
         self.assertEqual(rendered["weight_mode"], "delta")
         self.assertEqual(rendered["nodes"], ["a", "b", "c"])
+        self.assertEqual(rendered["start_counts"], [{"pass": "b", "weight": 3}])
         self.assertEqual(
             rendered["edges"],
             [
@@ -469,6 +479,109 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(path, ["b", "c", "d"])
 
+    def test_cycle_breaking_max_paths_returns_ranked_unique_paths(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "e"])
+        graph.edge_counts.update(
+            {
+                ("a", "b"): 10,
+                ("b", "d"): 10,
+                ("a", "c"): 8,
+                ("c", "d"): 8,
+                ("a", "e"): 6,
+                ("e", "d"): 6,
+            }
+        )
+
+        paths = cycle_breaking_max_paths(
+            graph,
+            config=CycleBreakingMaxPathConfig(max_length=3),
+            top_k=2,
+        )
+
+        self.assertEqual(paths, [["a", "b", "d"], ["a", "c", "d"]])
+        self.assertEqual(cycle_breaking_max_path(graph), paths[0])
+
+    def test_cycle_breaking_diverse_start_paths_uses_start_counts(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "x", "y", "z"])
+        graph.start_counts.update({"x": 30, "a": 20, "z": 10})
+        graph.edge_counts.update(
+            {
+                ("a", "b"): 10,
+                ("b", "c"): 10,
+                ("x", "y"): 3,
+                ("y", "c"): 3,
+                ("z", "d"): 5,
+            }
+        )
+
+        paths = cycle_breaking_diverse_start_paths(
+            graph,
+            config=CycleBreakingMaxPathConfig(max_length=3),
+            top_k=3,
+        )
+
+        self.assertEqual([path[0] for path in paths], ["x", "a", "z"])
+        self.assertEqual(paths[1], ["a", "b", "c"])
+
+    def test_cycle_breaking_top_start_paths_returns_top_paths_per_start(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "x", "y", "e"])
+        graph.start_counts.update({"a": 30, "x": 20})
+        graph.edge_counts.update(
+            {
+                ("a", "b"): 10,
+                ("b", "d"): 10,
+                ("a", "c"): 8,
+                ("c", "d"): 8,
+                ("x", "y"): 7,
+                ("y", "d"): 7,
+                ("x", "e"): 6,
+                ("e", "d"): 6,
+            }
+        )
+
+        paths = cycle_breaking_top_start_paths(
+            graph,
+            config=CycleBreakingMaxPathConfig(max_length=3),
+            top_starts=2,
+            paths_per_start=2,
+        )
+
+        self.assertEqual(
+            paths,
+            [
+                ["a", "b", "d"],
+                ["a", "c", "d"],
+                ["x", "y", "d"],
+                ["x", "e", "d"],
+            ],
+        )
+
+    def test_exhaustive_fixed_length_path_selects_best_length_six_path(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b", "c", "d", "e", "f"], support_weight=10)
+        graph.add_sequence(["a", "x", "y", "z", "q", "r"], support_weight=1)
+
+        path = exhaustive_fixed_length_path(
+            graph,
+            config=ExhaustivePathConfig(path_length=6),
+        )
+
+        self.assertEqual(path, ["a", "b", "c", "d", "e", "f"])
+
+    def test_exhaustive_fixed_length_path_falls_back_when_no_length_six_path(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b", "c"], support_weight=10)
+
+        path = exhaustive_fixed_length_path(
+            graph,
+            config=ExhaustivePathConfig(path_length=6),
+        )
+
+        self.assertEqual(path, ["a", "b", "c"])
+
     def test_random_walk_path_is_reproducible_and_uses_graph_edges(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
         graph.add_sequence(["a", "b"], support_weight=10)
@@ -523,6 +636,7 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "exhaustive_len6",
                 "random_walk",
                 "beam_search",
                 "weighted_toposort",
@@ -536,12 +650,13 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "exhaustive_len6",
                 "random_walk",
                 "beam_search",
                 "weighted_toposort",
             },
         )
-        self.assertEqual(len(report["results"]), 6)
+        self.assertEqual(len(report["results"]), 7)
         self.assertTrue(all(item["path"] for item in report["results"]))
 
     def test_parse_heuristics_expands_all_and_csv(self) -> None:
@@ -551,6 +666,7 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "greedy_consensus",
                 "dag_longest_path",
                 "cycle_breaking_max_path",
+                "exhaustive_len6",
                 "random_walk",
                 "beam_search",
                 "weighted_toposort",
@@ -634,6 +750,118 @@ class TranslationUnitContractTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b"])
+        graph.start_counts.update({"a": 5, "b": 3})
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 90
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            delta = {"a": 5, "b": 20}[passes[0]]
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - delta
+
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            selected, candidates, cache_count = evaluate_topk_paths.evaluate_topk_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                [["a"], ["b"]],
+                heuristic="cycle_breaking_diverse_starts_top10",
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+
+        self.assertEqual(selected["candidate_index"], 2)
+        self.assertEqual(selected["best_delta"], 20)
+        self.assertEqual(len(candidates), 2)
+        self.assertEqual(cache_count, 3)
+
+    def test_evaluate_topk_for_benchmark_can_measure_instructions(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b"])
+        sizes: dict[str, int] = {}
+        instructions: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_instruction_count(bitcode_path: Path, workdir: Path) -> int:
+            return instructions.get(str(bitcode_path), 50)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 90
+            instructions[str(output_bc)] = 45
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            size_delta = {"a": 5, "b": 20}[passes[0]]
+            instr_delta = {"a": 8, "b": 12}[passes[0]]
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - size_delta
+            instructions[str(output_bc)] = instructions.get(str(input_bc), 50) - instr_delta
+
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_instruction_count = evaluate_topk_paths.measure_machine_instruction_count
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.measure_machine_instruction_count = fake_instruction_count
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            selected, candidates, _ = evaluate_topk_paths.evaluate_topk_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                [["a"], ["b"]],
+                heuristic="cycle_breaking_diverse_starts_top10",
+                measure_instructions=True,
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.measure_machine_instruction_count = original_instruction_count
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+
+        self.assertEqual(selected["candidate_index"], 2)
+        self.assertEqual(selected["baseline_instruction_count"], 50)
+        self.assertEqual(selected["best_instruction_delta"], 12)
+        summary = evaluate_topk_paths.make_report_payload(
+            type(
+                "Args",
+                (),
+                {
+                    "graph": Path("graph.json"),
+                    "bitcode_dir": Path("bc"),
+                    "heuristic": "cycle_breaking_diverse_starts_top10",
+                    "top_k": 2,
+                    "top_starts": 10,
+                    "paths_per_start": 10,
+                    "max_length": 12,
+                    "min_edge_weight": 1,
+                    "random_walks": 0,
+                    "random_seed": 0,
+                    "exhaustive_length": 6,
+                    "measure_instructions": True,
+                },
+            )(),
+            [selected],
+            candidates,
+            {},
+        )["summary"]["cycle_breaking_diverse_starts_top10"]
+        self.assertEqual(summary["total_best_instruction_delta"], 12)
+        self.assertEqual(summary["weighted_best_instruction_percent"], 24.0)
 
     def test_summarize_evaluations_groups_by_heuristic(self) -> None:
         summary = summarize_evaluations(

@@ -13,6 +13,10 @@ from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
     cycle_breaking_max_path,
 )
+from llvm_ir.heuristics.translation_unit.exhaustive_path import (
+    ExhaustivePathConfig,
+    exhaustive_fixed_length_path,
+)
 from llvm_ir.heuristics.translation_unit.random_walk import (
     RandomWalkPathConfig,
     random_walk_path,
@@ -33,6 +37,7 @@ class HeuristicRunConfig:
     conflict_penalty: float = 1.0
     random_walks: int = 256
     random_seed: int = 0
+    exhaustive_length: int = 6
 
 
 def run_heuristic(
@@ -59,6 +64,14 @@ def run_heuristic(
             graph,
             config=CycleBreakingMaxPathConfig(
                 max_length=config.max_length,
+                min_edge_weight=config.min_edge_weight,
+            ),
+        )
+    if heuristic == "exhaustive_len6":
+        return exhaustive_fixed_length_path(
+            graph,
+            config=ExhaustivePathConfig(
+                path_length=config.exhaustive_length,
                 min_edge_weight=config.min_edge_weight,
             ),
         )
@@ -125,6 +138,7 @@ def compare_heuristics(
             "conflict_penalty": config.conflict_penalty,
             "random_walks": config.random_walks,
             "random_seed": config.random_seed,
+            "exhaustive_length": config.exhaustive_length,
         },
         "summary": summarize_heuristic_results(results),
         "results": results,
@@ -172,6 +186,7 @@ def parse_heuristics(value: str) -> list[str]:
             "greedy_consensus",
             "dag_longest_path",
             "cycle_breaking_max_path",
+            "exhaustive_len6",
             "random_walk",
             "beam_search",
             "weighted_toposort",
@@ -190,7 +205,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="all",
         help="Comma-separated heuristics or all. Available: "
         "greedy_consensus,dag_longest_path,cycle_breaking_max_path,"
-        "random_walk,beam_search,weighted_toposort.",
+        "exhaustive_len6,random_walk,beam_search,weighted_toposort.",
     )
     parser.add_argument("--max-length", type=int, default=12)
     parser.add_argument("--beam-width", type=int, default=16)
@@ -199,6 +214,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--conflict-penalty", type=float, default=1.0)
     parser.add_argument("--random-walks", type=int, default=256)
     parser.add_argument("--random-seed", type=int, default=0)
+    parser.add_argument("--exhaustive-length", type=int, default=6)
     return parser.parse_args(argv)
 
 
@@ -212,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         conflict_penalty=args.conflict_penalty,
         random_walks=args.random_walks,
         random_seed=args.random_seed,
+        exhaustive_length=args.exhaustive_length,
     )
     graphs = load_graphs_from_report(args.input)
     heuristics = parse_heuristics(args.heuristics)
