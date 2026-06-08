@@ -131,6 +131,29 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(graph.function_count, 3)
         self.assertEqual(graph.sequence_count, 3)
 
+    def test_pass_order_graph_can_make_nearby_pairs_stronger(self) -> None:
+        graph = build_pass_order_graph(
+            [
+                FunctionPassResult(
+                    function="demo-v0_unit_f1.bc",
+                    baseline_size=10,
+                    best_size=8,
+                    passes=["a", "b", "c", "d"],
+                ),
+            ],
+            benchmark="demo-v0_unit",
+            weight_mode="delta_distance",
+        )
+
+        self.assertEqual(graph.weight_mode, "delta_distance")
+        self.assertEqual(graph.start_counts["a"], 2)
+        self.assertEqual(graph.edge_weight("a", "b"), 24)
+        self.assertEqual(graph.edge_weight("a", "c"), 12)
+        self.assertEqual(graph.edge_weight("a", "d"), 8)
+        self.assertEqual(graph.edge_weight("b", "c"), 24)
+        self.assertEqual(graph.edge_weight("b", "d"), 12)
+        self.assertEqual(graph.edge_weight("c", "d"), 24)
+
     def test_support_weight_for_result_clamps_negative_delta(self) -> None:
         improved = FunctionPassResult(
             function="improved.bc",
@@ -146,8 +169,11 @@ class TranslationUnitContractTests(unittest.TestCase):
         )
 
         self.assertEqual(support_weight_for_result(improved, "count"), 1)
+        self.assertEqual(support_weight_for_result(improved, "count_distance"), 1)
         self.assertEqual(support_weight_for_result(improved, "delta"), 3)
+        self.assertEqual(support_weight_for_result(improved, "delta_distance"), 3)
         self.assertEqual(support_weight_for_result(regressed, "delta"), 0)
+        self.assertEqual(support_weight_for_result(regressed, "delta_distance"), 0)
 
     def test_pass_order_graph_to_dict_is_stable(self) -> None:
         graph = build_pass_order_graph(

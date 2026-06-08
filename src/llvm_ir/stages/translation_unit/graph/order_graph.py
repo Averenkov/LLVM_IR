@@ -12,7 +12,8 @@ from typing import Any, Literal
 
 from ..contracts import FunctionPassResult
 
-WeightMode = Literal["count", "delta"]
+WeightMode = Literal["count", "delta", "count_distance", "delta_distance"]
+DISTANCE_WEIGHT_SCALE = 12
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,13 @@ class PassOrderGraph:
     edge_counts: dict[tuple[str, str], int] = field(default_factory=dict)
     start_counts: dict[str, int] = field(default_factory=dict)
 
-    def add_sequence(self, passes: list[str], *, support_weight: int = 1) -> None:
+    def add_sequence(
+        self,
+        passes: list[str],
+        *,
+        support_weight: int = 1,
+        distance_weight_scale: int | None = None,
+    ) -> None:
         """Add all pairwise order constraints from one pass sequence."""
         self.function_count += 1
         if not passes:
@@ -45,17 +52,27 @@ class PassOrderGraph:
         self.nodes.update(passes)
         if support_weight <= 0:
             return
-        self.start_counts[passes[0]] = self.start_counts.get(passes[0], 0) + support_weight
+        self.start_counts[passes[0]] = (
+            self.start_counts.get(passes[0], 0) + support_weight
+        )
         seen_pairs: set[tuple[str, str]] = set()
         for left_index, source in enumerate(passes):
-            for target in passes[left_index + 1 :]:
+            for right_index, target in enumerate(
+                passes[left_index + 1 :],
+                start=left_index + 1,
+            ):
                 if source == target:
                     continue
                 pair = (source, target)
                 if pair in seen_pairs:
                     continue
                 seen_pairs.add(pair)
-                self.edge_counts[pair] = self.edge_counts.get(pair, 0) + support_weight
+                pair_weight = pair_weight_for_distance(
+                    support_weight,
+                    right_index - left_index,
+                    distance_weight_scale=distance_weight_scale,
+                )
+                self.edge_counts[pair] = self.edge_counts.get(pair, 0) + pair_weight
 
     @property
     def edges(self) -> list[PassOrderEdge]:
@@ -116,6 +133,7 @@ def build_pass_order_graph(
         graph.add_sequence(
             list(result.passes),
             support_weight=support_weight_for_result(result, weight_mode),
+            distance_weight_scale=distance_weight_scale_for_mode(weight_mode),
         )
     return graph
 
@@ -143,11 +161,31 @@ def support_weight_for_result(
     result: FunctionPassResult,
     weight_mode: WeightMode,
 ) -> int:
-    if weight_mode == "count":
+    if weight_mode in {"count", "count_distance"}:
         return 1
-    if weight_mode == "delta":
+    if weight_mode in {"delta", "delta_distance"}:
         return max(result.delta, 0)
     raise ValueError(f"Unknown graph weight mode: {weight_mode}")
+
+
+def distance_weight_scale_for_mode(weight_mode: WeightMode) -> int | None:
+    if weight_mode in {"count_distance", "delta_distance"}:
+        return DISTANCE_WEIGHT_SCALE
+    return None
+
+
+def pair_weight_for_distance(
+    support_weight: int,
+    distance: int,
+    *,
+    distance_weight_scale: int | None,
+) -> int:
+    if distance <= 0:
+        raise ValueError("distance must be positive")
+    if distance_weight_scale is None:
+        return support_weight
+    distance_factor = max(1, (distance_weight_scale + distance - 1) // distance)
+    return support_weight * distance_factor
 
 
 def load_function_pass_results_from_report(
@@ -216,7 +254,10 @@ def pass_order_graph_from_dict(payload: dict[str, Any]) -> PassOrderGraph:
     raw_start_counts = payload.get("start_counts") or []
     if isinstance(raw_start_counts, dict):
         graph.start_counts.update(
-            {str(pass_name): int(weight) for pass_name, weight in raw_start_counts.items()}
+            {
+                str(pass_name): int(weight)
+                for pass_name, weight in raw_start_counts.items()
+            }
         )
     else:
         for item in raw_start_counts:
@@ -261,10 +302,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--weight-mode",
-        choices=["count", "delta"],
+        choices=["count", "delta", "count_distance", "delta_distance"],
         default="count",
         help="Edge weight mode: count adds 1 per supporting function sequence; "
-        "delta adds the function size improvement.",
+        "delta adds the function size improvement; *_distance additionally "
+        "makes nearby pass pairs stronger.",
     )
     return parser.parse_args(argv)
 
