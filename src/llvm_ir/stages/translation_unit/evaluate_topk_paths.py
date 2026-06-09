@@ -86,7 +86,7 @@ def generate_topk_paths(
             top_starts=args.top_starts,
             paths_per_start=args.paths_per_start,
         )
-    if heuristic == "random_walk_top10":
+    if heuristic in {"random_walk_top10", "random_walk_topk"}:
         return random_walk_top_paths(
             graph,
             config=RandomWalkPathConfig(
@@ -484,6 +484,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "cycle_breaking_max_path_topk",
             "cycle_breaking_top_starts_top_paths",
             "random_walk_top10",
+            "random_walk_topk",
             "exhaustive_len6_top10",
         ],
     )

@@ -564,6 +564,7 @@ benchmark-и влияют на итог пропорционально свое�
 | `top10 starts x top10 paths` | `delta` | 1084 | 73879 | 7.1513% | 16802 | 8.1488% | 20/30 |
 | `top20 starts x top20 paths` | `delta` | 2734 | 74331 | 7.1950% | 16913 | 8.2026% | 20/30 |
 | `top10 starts x top10 paths` | `delta_distance` | 1082 | 74055 | 7.1683% | 16843 | 8.1687% | 20/30 |
+| `random_walk_top1000` | `delta` | 7588 | 77495 | 7.5013% | 17383 | 8.4306% | 21/30 |
 
 Выводы из таблицы:
 
@@ -574,11 +575,14 @@ benchmark-и влияют на итог пропорционально свое�
   `8.1488% -> 8.2026%` по инструкциям.
 - Distance-aware веса улучшают `top10 x top10` относительно обычного `delta`:
   `7.1513% -> 7.1683%` по `.text` и `8.1488% -> 8.1687%` по инструкциям.
-- Лучший результат среди сохранённых запусков на данный момент -
-  `top20 starts x top20 paths` с обычным `delta`: `7.1950%` по `.text` и
-  `8.2026%` по числу машинных инструкций.
+- `random_walk_top1000` показывает лучший сохранённый результат: `7.5013%`
+  по `.text` и `8.4306%` по числу машинных инструкций. В отличие от
+  `random_walk_top10`, он генерирует больше случайных путей (`50000` walks),
+  выбирает top-1000 уникальных кандидатов по graph score и затем проверяет их
+  реальным запуском на TU.
 - Во всех основных TU-запусках `30/30` benchmark-ов имеют улучшенный best prefix
-  относительно baseline, а `20/30` benchmark-ов лучше `-Oz`.
+  относительно baseline. Лучший запуск `random_walk_top1000` превосходит `-Oz`
+  на `21/30` benchmark-ах.
 
 ### Интерпретация Для Диплома
 
@@ -628,8 +632,8 @@ Distance-aware веса являются попыткой точнее коди�
    циклы, выбирает сильные стартовые pass-ы и генерирует top-k путей в DAG.
 5. Добавлена real-TU проверка candidate path-ов с prefix-cache и измерением как
    `.text`, так и количества машинных инструкций.
-6. Экспериментально показано, что предложенная схема даёт до `7.1950%`
-   weighted improvement по `.text` и до `8.2026%` weighted improvement по числу
+6. Экспериментально показано, что предложенная схема даёт до `7.5013%`
+   weighted improvement по `.text` и до `8.4306%` weighted improvement по числу
    машинных инструкций на наборе из `30` translation units.
 
 ### Где Лежат Основные Артефакты
@@ -641,6 +645,7 @@ Distance-aware веса являются попыткой точнее коди�
 | Top10 x Top10 TU eval | `runs/cycle_top10_starts_top10_paths_instr/tu_eval.json` |
 | Top20 x Top20 TU eval | `runs/cycle_top20_starts_top20_paths_instr_20260605_114124/tu_eval_cycle_top20_starts_top20_paths_instr.json` |
 | Delta-distance Top10 x Top10 TU eval | `runs/cycle_top10_starts_top10_paths_delta_distance_instr_20260607_101117/tu_eval_cycle_top20_starts_top10_paths_delta_distance_instr.json` |
+| Random Walk Top1000 TU eval | `runs/random_walk_top1000_instr_20260608_224901/tu_eval_random_walk_top1000_instr.json` |
 | Top1000 cycle-breaking eval | `runs/cycle_max_path_top1000_20260604_211303/tu_eval_cycle_breaking_max_path_top1000.json` |
 
 

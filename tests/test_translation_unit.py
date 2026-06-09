@@ -777,6 +777,30 @@ class TranslationUnitContractTests(unittest.TestCase):
             ],
         )
 
+    def test_generate_topk_paths_accepts_random_walk_topk_alias(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.add_sequence(["a", "b", "c"], support_weight=10)
+        args = type(
+            "Args",
+            (),
+            {
+                "max_length": 3,
+                "random_walks": 16,
+                "random_seed": 7,
+                "min_edge_weight": 1,
+                "top_k": 5,
+            },
+        )
+
+        paths = evaluate_topk_paths.generate_topk_paths(
+            graph,
+            "random_walk_topk",
+            args,
+        )
+
+        self.assertGreaterEqual(len(paths), 1)
+        self.assertLessEqual(len(paths), 5)
+
     def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
         graph.nodes.update(["a", "b"])
