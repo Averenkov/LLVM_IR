@@ -23,7 +23,6 @@ def dag_longest_path(
     if config is None:
         config = DAGLongestPathConfig()
     order = sorted_nodes_by_priority(graph)
-    order_index = {node: index for index, node in enumerate(order)}
     dag_edges: dict[str, list[tuple[str, int]]] = {node: [] for node in order}
 
     for left_index, source in enumerate(order):
@@ -33,9 +32,8 @@ def dag_longest_path(
             net = forward - backward
             if net >= config.min_net_weight:
                 dag_edges[source].append((target, net))
-            elif -net >= config.min_net_weight:
-                if order_index[target] < order_index[source]:
-                    dag_edges[target].append((source, -net))
+            # Reverse preferences are intentionally ignored here: the heuristic
+            # keeps edges aligned with the priority order so the graph remains a DAG.
 
     best_score: dict[str, int] = {node: 0 for node in order}
     best_path: dict[str, list[str]] = {node: [node] for node in order}

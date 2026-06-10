@@ -470,6 +470,14 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(weighted_toposort_path(graph), ["a", "b"])
 
+    def test_dag_longest_path_ignores_reverse_priority_edges(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update({"a", "b", "c"})
+        graph.edge_counts[("a", "c")] = 100
+        graph.edge_counts[("b", "a")] = 10
+
+        self.assertEqual(dag_longest_path(graph), ["a", "c"])
+
     def test_dag_longest_path_uses_pairwise_net_support(self) -> None:
         graph = build_pass_order_graph(
             [
