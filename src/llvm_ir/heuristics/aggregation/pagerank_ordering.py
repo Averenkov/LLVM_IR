@@ -28,7 +28,7 @@ class PageRankOrdering(AggregationHeuristic):
         outgoing_rank = _pagerank(nodes, reverse_weights, personalization, damping, max_iter, eps)
         sequence = sorted(
             nodes,
-            key=lambda node: (-(incoming_rank[node] - outgoing_rank[node]), node),
+            key=lambda node: (-(outgoing_rank[node] - incoming_rank[node]), node),
         )
         return AggregationResult([sequence], sequence, len(sequence), {"rank": incoming_rank})
 

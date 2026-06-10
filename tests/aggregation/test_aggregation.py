@@ -12,6 +12,7 @@ from llvm_ir.heuristics.aggregation.base import (
 )
 from llvm_ir.heuristics.aggregation.export_paths import export_aggregation_paths
 from llvm_ir.heuristics.aggregation.graph_utils import eades_order
+from llvm_ir.heuristics.aggregation.pagerank_ordering import PageRankOrdering
 from llvm_ir.heuristics.aggregation.registry import available_heuristics, build_heuristic
 from llvm_ir.heuristics.aggregation.tu_eval import TUEvaluator
 from llvm_ir.heuristics.aggregation.voting_ensemble import VotingEnsemble
@@ -52,6 +53,21 @@ class AggregationHeuristicTests(unittest.TestCase):
         weights = {("a", "b"): 1.0, ("b", "c"): 1.0, ("a", "c"): 1.0}
 
         self.assertEqual(eades_order(nodes, weights), ["a", "b", "c"])
+
+    def test_pagerank_preserves_unanimous_order(self) -> None:
+        dataset = Dataset(
+            results=[
+                PerFunctionResult("f1", ["a", "b", "c"], 100, 80),
+                PerFunctionResult("f2", ["a", "b", "c"], 90, 70),
+                PerFunctionResult("f3", ["a", "b", "c"], 80, 60),
+            ],
+            name="unanimous",
+        )
+        graph = build_pass_graph(dataset.results)
+
+        result = PageRankOrdering().aggregate(dataset, graph, {})
+
+        self.assertEqual(result.chosen_sequence, ["a", "b", "c"])
 
     def test_voting_preserves_order_for_identical_voters(self) -> None:
         dataset = demo_dataset()
