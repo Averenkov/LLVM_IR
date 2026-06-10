@@ -10,7 +10,7 @@ LOG="$RUN_DIR/nightly.log"
 
 DATASET_DIR="${DATASET_DIR:-datasets/autotune_stratified_30_functions_bc}"
 BITCODE_DIR="${BITCODE_DIR:-experiments/translation_unit_bitcode/autotune_stratified_30}"
-SITE_DATA="${SITE_DATA:-/home/vladimir/diplom/diplom_LLVM_IR/.compiler_gym/site_data}"
+SITE_DATA="${SITE_DATA:-}"
 
 SEED="${SEED:-7}"
 LIMIT="${LIMIT:-0}"
@@ -124,6 +124,11 @@ run_algorithm() {
     fi
   fi
 
+  local site_data_args=()
+  if [[ -n "$SITE_DATA" ]]; then
+    site_data_args+=(--site-data "$SITE_DATA")
+  fi
+
   log "=== $algorithm: per-function pass search (steps=$search_steps iterations=$search_iterations candidates=$search_candidates jobs=$search_jobs) ==="
   run_cmd python3 -m llvm_ir.stages.function_search.pass_search \
     --dataset-dir "$DATASET_DIR" \
@@ -163,7 +168,7 @@ run_algorithm() {
     log "=== $algorithm: whole translation-unit evaluation ==="
     run_cmd python3 -m llvm_ir.stages.translation_unit.evaluate \
       --input "$heur_dir/all_heuristics.json" \
-      --site-data "$SITE_DATA" \
+      "${site_data_args[@]}" \
       --bitcode-dir "$BITCODE_DIR" \
       --output "$eval_dir/tu_eval_all_heuristics.json"
   else
@@ -202,7 +207,7 @@ run_algorithm() {
     log "=== $algorithm: whole TU evaluation for all 11 aggregation heuristics ==="
     run_cmd python3 -m llvm_ir.stages.translation_unit.evaluate \
       --input "$aggregation_paths_dir/all_aggregation_heuristics.json" \
-      --site-data "$SITE_DATA" \
+      "${site_data_args[@]}" \
       --bitcode-dir "$BITCODE_DIR" \
       --output "$aggregation_eval_dir/tu_eval_all_aggregation_heuristics.json"
   else

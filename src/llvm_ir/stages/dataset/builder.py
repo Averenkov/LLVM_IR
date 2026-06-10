@@ -74,7 +74,13 @@ def safe_function_stem(function_name: str, max_len: int = 96) -> str:
 
 
 def count_llvm_ir_instructions(ll_file_path: Path) -> int:
-    """Count LLVM IR instructions using the line-based heuristic from the prototype."""
+    """Count LLVM IR lines for dataset ranking with a lightweight heuristic.
+
+    The heuristic skips blank lines, comments, labels, declarations, metadata,
+    attributes, and target directives. It still counts remaining non-skipped
+    lines such as globals and closing braces, so this is a selection proxy, not
+    an exact LLVM instruction count.
+    """
     content = ll_file_path.read_text(encoding="utf-8", errors="replace")
 
     count = 0
