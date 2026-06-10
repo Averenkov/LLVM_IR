@@ -416,6 +416,33 @@ class PassSearchTests(unittest.TestCase):
         self.assertEqual(result.passes, ["good"])
         self.assertEqual(result.actions, [0])
 
+    def test_measure_text_size_removes_temporary_object(self) -> None:
+        original_run_cmd = pass_search.run_cmd
+
+        class Result:
+            stdout = "text data bss dec hex filename\n42 0 0 42 2a demo.o\n"
+
+        def fake_run_cmd(cmd):
+            if cmd[0] == "llc":
+                obj_path = Path(cmd[cmd.index("-o") + 1])
+                obj_path.write_bytes(b"obj")
+                return Result()
+            if cmd[0] == "llvm-size":
+                return Result()
+            raise AssertionError(f"unexpected command: {cmd}")
+
+        try:
+            pass_search.run_cmd = fake_run_cmd
+            with tempfile.TemporaryDirectory() as tmp_str:
+                workdir = Path(tmp_str)
+                size = pass_search.measure_text_size(Path("demo.bc"), workdir)
+                object_files = list(workdir.glob("*.o"))
+        finally:
+            pass_search.run_cmd = original_run_cmd
+
+        self.assertEqual(size, 42)
+        self.assertEqual(object_files, [])
+
     def test_filter_valid_passes_can_validate_on_multiple_files(self) -> None:
         original_run_cmd = pass_search.run_cmd
 

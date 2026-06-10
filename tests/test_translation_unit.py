@@ -937,6 +937,108 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(summary["total_best_instruction_delta"], 12)
         self.assertEqual(summary["weighted_best_instruction_percent"], 24.0)
 
+    def test_measure_machine_instruction_count_removes_temporary_object(self) -> None:
+        original_run_cmd = evaluate_topk_paths.run_cmd
+
+        class Result:
+            def __init__(self, stdout: str = "") -> None:
+                self.stdout = stdout
+
+        def fake_run_cmd(cmd):
+            if cmd[0] == "llc":
+                obj_path = Path(cmd[cmd.index("-o") + 1])
+                obj_path.write_bytes(b"obj")
+                return Result()
+            if cmd[0] == "llvm-objdump":
+                return Result("   0:\t90\n   1:\t90\nlabel:\n")
+            raise AssertionError(f"unexpected command: {cmd}")
+
+        try:
+            evaluate_topk_paths.run_cmd = fake_run_cmd
+            with tempfile.TemporaryDirectory() as tmp_str:
+                workdir = Path(tmp_str)
+                count = evaluate_topk_paths.measure_machine_instruction_count(
+                    Path("demo.bc"),
+                    workdir,
+                )
+                object_files = list(workdir.glob("*.o"))
+        finally:
+            evaluate_topk_paths.run_cmd = original_run_cmd
+
+        self.assertEqual(count, 2)
+        self.assertEqual(object_files, [])
+
+    def test_evaluate_topk_reports_tail_failures_and_prefix_failures(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["good", "bad"])
+        graph.start_counts.update({"good": 5})
+        graph.edge_counts[("good", "bad")] = 5
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 95
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            if passes == ["bad"]:
+                raise RuntimeError("pass failed")
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - 20
+
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            selected, candidates, cache_count = evaluate_topk_paths.evaluate_topk_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                [["good", "bad"]],
+                heuristic="cycle_breaking_diverse_starts_top10",
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+
+        self.assertEqual(selected["best_prefix_len"], 1)
+        self.assertEqual(selected["best_delta"], 20)
+        self.assertEqual(selected["error_kind"], "tail_failure")
+        self.assertEqual(selected["prefix_failures"], 1)
+        self.assertEqual(candidates[0]["error_kind"], "tail_failure")
+        self.assertEqual(cache_count, 3)
+
+        summary = evaluate_topk_paths.make_report_payload(
+            type(
+                "Args",
+                (),
+                {
+                    "graph": Path("graph.json"),
+                    "bitcode_dir": Path("bc"),
+                    "heuristic": "cycle_breaking_diverse_starts_top10",
+                    "top_k": 1,
+                    "top_starts": 10,
+                    "paths_per_start": 10,
+                    "max_length": 12,
+                    "min_edge_weight": 1,
+                    "random_walks": 0,
+                    "random_seed": 0,
+                    "exhaustive_length": 6,
+                    "measure_instructions": False,
+                },
+            )(),
+            [selected],
+            candidates,
+            {"demo": cache_count},
+        )["summary"]["cycle_breaking_diverse_starts_top10"]
+
+        self.assertEqual(summary["tail_failures"], 1)
+        self.assertEqual(summary["full_failures"], 0)
+        self.assertEqual(summary["prefix_failures"], 1)
+
     def test_summarize_evaluations_groups_by_heuristic(self) -> None:
         summary = summarize_evaluations(
             [

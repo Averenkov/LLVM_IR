@@ -48,9 +48,12 @@ INSTRUCTION_LINE_RE = re.compile(r"^\s*[0-9a-fA-F]+:\s")
 
 def measure_machine_instruction_count(bitcode_path: Path, workdir: Path) -> int:
     obj_path = workdir / f"{bitcode_path.stem}.instr.o"
-    run_cmd(["llc", "-filetype=obj", str(bitcode_path), "-o", str(obj_path)])
-    out = run_cmd(["llvm-objdump", "-d", str(obj_path)]).stdout.splitlines()
-    return sum(1 for line in out if INSTRUCTION_LINE_RE.match(line))
+    try:
+        run_cmd(["llc", "-filetype=obj", str(bitcode_path), "-o", str(obj_path)])
+        out = run_cmd(["llvm-objdump", "-d", str(obj_path)]).stdout.splitlines()
+        return sum(1 for line in out if INSTRUCTION_LINE_RE.match(line))
+    finally:
+        obj_path.unlink(missing_ok=True)
 
 
 def generate_topk_paths(
@@ -155,6 +158,7 @@ def evaluate_candidate_with_prefix_cache(
                     "bc": str(parent["bc"]),
                     "size": int(parent["size"]),
                     "error": f"{type(exc).__name__}: {exc}",
+                    "failed_pass": pass_name,
                 }
                 if measure_instructions and "instruction_count" in parent:
                     entry["instruction_count"] = int(parent["instruction_count"])
@@ -182,6 +186,10 @@ def evaluate_candidate_with_prefix_cache(
             best_instruction_passes = passes[:index]
 
     final_entry = prefix_cache[current_key]
+    error = error or str(final_entry.get("error") or "")
+    error_kind = ""
+    if error:
+        error_kind = "tail_failure" if best_prefix_len > 0 else "full_failure"
     return {
         "final_size": int(final_entry["size"]),
         "best_size": best_size,
@@ -191,7 +199,8 @@ def evaluate_candidate_with_prefix_cache(
         "best_instruction_count": best_instruction_count,
         "best_instruction_prefix_len": best_instruction_prefix_len,
         "best_instruction_passes": best_instruction_passes,
-        "error": error or str(final_entry.get("error") or ""),
+        "error": error,
+        "error_kind": error_kind,
     }
 
 
@@ -280,6 +289,7 @@ def evaluate_topk_for_benchmark(
                 "best_instruction_passes": result["best_instruction_passes"],
                 "graph_score": score_path(graph, passes).to_dict(),
                 "error": result["error"],
+                "error_kind": result["error_kind"],
             }
             candidate_rows.append(row)
             if best_row is None or _selected_key(row) > _selected_key(best_row):
@@ -320,7 +330,10 @@ def evaluate_topk_for_benchmark(
                 "best_instruction_passes": [],
                 "graph_score": {},
                 "error": "no candidate paths",
+                "error_kind": "full_failure",
             }
+        prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
+        best_row["prefix_failures"] = prefix_failures
         return dict(best_row), candidate_rows, len(prefix_cache)
 
 
@@ -377,6 +390,7 @@ def make_report_payload(
 ) -> dict[str, Any]:
     summary = summarize_evaluations(selected_rows)
     add_instruction_summary(summary, selected_rows)
+    add_failure_summary(summary, selected_rows)
     if selected_rows and args.heuristic in summary:
         summary[args.heuristic]["mean_selected_from_top_k"] = sum(
             int(row["candidate_index"]) for row in selected_rows
@@ -404,6 +418,30 @@ def make_report_payload(
         "selected_rows": list(selected_rows),
         "candidate_rows": list(candidate_rows),
     }
+
+
+def add_failure_summary(
+    summary: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> None:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["heuristic"]), []).append(row)
+    for heuristic, items in grouped.items():
+        summary.setdefault(heuristic, {})
+        summary[heuristic].update(
+            {
+                "tail_failures": sum(
+                    1 for row in items if row.get("error_kind") == "tail_failure"
+                ),
+                "full_failures": sum(
+                    1 for row in items if row.get("error_kind") == "full_failure"
+                ),
+                "prefix_failures": sum(
+                    int(row.get("prefix_failures") or 0) for row in items
+                ),
+            }
+        )
 
 
 def add_instruction_summary(

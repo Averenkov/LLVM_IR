@@ -53,11 +53,14 @@ def require_tools(*tools: str) -> None:
 
 def measure_text_size(bitcode_path: Path, workdir: Path) -> int:
     obj_path = workdir / f"{bitcode_path.stem}.o"
-    run_cmd(["llc", "-filetype=obj", str(bitcode_path), "-o", str(obj_path)])
-    out = run_cmd(["llvm-size", str(obj_path)]).stdout.strip().splitlines()
-    if len(out) < 2:
-        raise LLVMCommandError(f"unexpected llvm-size output: {out!r}")
-    return int(out[1].split()[0])
+    try:
+        run_cmd(["llc", "-filetype=obj", str(bitcode_path), "-o", str(obj_path)])
+        out = run_cmd(["llvm-size", str(obj_path)]).stdout.strip().splitlines()
+        if len(out) < 2:
+            raise LLVMCommandError(f"unexpected llvm-size output: {out!r}")
+        return int(out[1].split()[0])
+    finally:
+        obj_path.unlink(missing_ok=True)
 
 
 def apply_pass_sequence(
