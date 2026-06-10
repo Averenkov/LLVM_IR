@@ -123,6 +123,35 @@ class PassSearchTests(unittest.TestCase):
         self.assertGreaterEqual(result.delta, 0)
         self.assertEqual(len(calls), 6)
 
+    def test_cem_search_preserves_zero_size_best_candidate(self) -> None:
+        sizes = iter([0, 5])
+
+        def evaluate(actions, selected_passes, candidate_id):
+            size = next(sizes)
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=size,
+                reward=10 - size,
+            )
+
+        result = search_pass_sequence_for_function(
+            ["a"],
+            baseline_size=10,
+            config=CEMConfig(
+                steps=1,
+                iterations=1,
+                candidates=2,
+                elite_size=1,
+                allow_stop=False,
+            ),
+            rng=random.Random(1),
+            evaluate_candidate=evaluate,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(result.best.size, 0)
+
     def test_cem_search_does_not_evaluate_shifts_by_default(self) -> None:
         calls = []
 
@@ -237,6 +266,34 @@ class PassSearchTests(unittest.TestCase):
 
         self.assertEqual(algorithm.name, "cem")
         self.assertEqual(result.best_size, 7)
+
+    def test_random_search_preserves_zero_size_best_candidate(self) -> None:
+        sizes = iter([0, 5])
+
+        def evaluate(actions, selected_passes, candidate_id):
+            size = next(sizes)
+            return CandidateResult(
+                actions=actions,
+                passes=selected_passes,
+                size=size,
+                reward=10 - size,
+            )
+
+        result = search_pass_sequence_randomly(
+            ["a"],
+            baseline_size=10,
+            config=RandomSearchConfig(
+                steps=1,
+                iterations=1,
+                candidates=2,
+                allow_stop=False,
+            ),
+            rng=random.Random(1),
+            evaluate_candidate=evaluate,
+        )
+
+        self.assertIsNotNone(result.best)
+        self.assertEqual(result.best.size, 0)
 
     def test_random_search_uses_candidate_evaluator_for_one_function(self) -> None:
         calls = []

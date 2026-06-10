@@ -81,7 +81,7 @@ def search_pass_sequence_randomly(
                 total_evaluated += 1
                 if result.size is None:
                     failed += 1
-                elif best is None or result.size < (best.size or baseline_size + 1):
+                elif best is None or result.size < (best.size if best.size is not None else baseline_size + 1):
                     best = result
 
     return RandomSearchResult(
