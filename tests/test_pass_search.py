@@ -457,8 +457,14 @@ class PassSearchTests(unittest.TestCase):
         finally:
             pass_search.run_search_for_function = original_run
 
+        expected_rng_values = [
+            random.Random(pass_search.function_seed(7, 1)).random(),
+            random.Random(pass_search.function_seed(7, 2)).random(),
+        ]
+
         self.assertEqual([row["function"] for row in rows], ["b.bc", "a.bc"])
         self.assertEqual([call[1] for call in calls], ["random", "random"])
+        self.assertEqual([call[2] for call in calls], expected_rng_values)
 
     def test_summarize_rows_counts_improvements_and_oz_wins(self) -> None:
         summary = summarize_rows(

@@ -264,6 +264,11 @@ def run_cem_for_function(
     )
 
 
+def function_seed(seed: int, index: int) -> int:
+    """Return the deterministic per-function seed used by serial and parallel jobs."""
+    return seed + index * 1_000_003
+
+
 def _run_search_job(
     job: tuple[int, str, list[str], str, CEMConfig, int],
 ) -> tuple[int, str, dict[str, Any]]:
@@ -289,7 +294,6 @@ def run_pass_search_jobs(
 ) -> list[dict[str, Any]]:
     """Run per-function pass search, optionally in parallel."""
     if jobs <= 1:
-        rng = random.Random(seed)
         algorithm = build_function_search_algorithm(
             algorithm_name,
             cem_config=cem_config,
@@ -302,7 +306,7 @@ def run_pass_search_jobs(
                     bitcode_path,
                     passes,
                     algorithm=algorithm,
-                    rng=rng,
+                    rng=random.Random(function_seed(seed, index)),
                 )
             )
         return rows
@@ -315,7 +319,7 @@ def run_pass_search_jobs(
             passes,
             algorithm_name,
             cem_config,
-            seed + index * 1_000_003,
+            function_seed(seed, index),
         )
         for index, bitcode_path in enumerate(files, start=1)
     ]
