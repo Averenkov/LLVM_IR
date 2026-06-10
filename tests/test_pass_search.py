@@ -416,6 +416,36 @@ class PassSearchTests(unittest.TestCase):
         self.assertEqual(result.passes, ["good"])
         self.assertEqual(result.actions, [0])
 
+    def test_filter_valid_passes_can_validate_on_multiple_files(self) -> None:
+        original_run_cmd = pass_search.run_cmd
+
+        def fake_run_cmd(cmd):
+            pass_name = cmd[1].removeprefix("-passes=")
+            bitcode_name = Path(cmd[2]).name
+            if pass_name == "late-valid" and bitcode_name == "second.bc":
+                return None
+            if pass_name == "always-valid":
+                return None
+            raise pass_search.LLVMCommandError("invalid")
+
+        try:
+            pass_search.run_cmd = fake_run_cmd
+            valid_one, invalid_one = pass_search.filter_valid_passes(
+                [Path("first.bc")],
+                ["late-valid", "always-valid", "never-valid"],
+            )
+            valid_two, invalid_two = pass_search.filter_valid_passes(
+                [Path("first.bc"), Path("second.bc")],
+                ["late-valid", "always-valid", "never-valid"],
+            )
+        finally:
+            pass_search.run_cmd = original_run_cmd
+
+        self.assertEqual(valid_one, ["always-valid"])
+        self.assertEqual(invalid_one, ["late-valid", "never-valid"])
+        self.assertEqual(valid_two, ["late-valid", "always-valid"])
+        self.assertEqual(invalid_two, ["never-valid"])
+
     def test_select_bitcode_files_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_str:
             root = Path(tmp_str)

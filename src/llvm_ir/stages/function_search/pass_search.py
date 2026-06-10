@@ -75,17 +75,31 @@ def optimize_oz(input_bc: Path, output_bc: Path) -> None:
     run_cmd(["opt", "-passes=default<Oz>", str(input_bc), "-o", str(output_bc)])
 
 
-def filter_valid_passes(bitcode_path: Path, passes: list[str]) -> tuple[list[str], list[str]]:
-    """Keep passes accepted by the local opt binary for the given bitcode."""
+def filter_valid_passes(
+    bitcode_paths: Path | list[Path],
+    passes: list[str],
+) -> tuple[list[str], list[str]]:
+    """Keep passes accepted by local opt on at least one validation bitcode."""
+    paths = [bitcode_paths] if isinstance(bitcode_paths, Path) else list(bitcode_paths)
+    if not paths:
+        return [], list(passes)
+
     valid = []
     invalid = []
     with tempfile.TemporaryDirectory(prefix="llvm-ir-pass-check-") as tmp:
         out = Path(tmp) / "check.bc"
         for pass_name in passes:
-            try:
-                run_cmd(["opt", f"-passes={pass_name}", str(bitcode_path), "-o", str(out)])
+            pass_valid = False
+            for bitcode_path in paths:
+                try:
+                    run_cmd(["opt", f"-passes={pass_name}", str(bitcode_path), "-o", str(out)])
+                    pass_valid = True
+                    break
+                except LLVMCommandError:
+                    continue
+            if pass_valid:
                 valid.append(pass_name)
-            except LLVMCommandError:
+            else:
                 invalid.append(pass_name)
     return valid, invalid
 
@@ -559,6 +573,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Use the raw pass list without checking pass availability in local opt.",
     )
+    parser.add_argument(
+        "--validate-passes-on",
+        type=int,
+        default=1,
+        help="Validate passes on the first N selected bitcode files; valid if any succeeds.",
+    )
     return parser.parse_args(argv)
 
 
@@ -574,8 +594,12 @@ def main(argv: list[str] | None = None) -> int:
     files = select_bitcode_files(dataset_dir, args.limit, args.seed)
     passes = list(DEFAULT_PASSES)
     invalid_passes: list[str] = []
+    validate_passes_on = max(1, args.validate_passes_on)
     if files and not args.no_filter_invalid_passes:
-        passes, invalid_passes = filter_valid_passes(files[0], passes)
+        passes, invalid_passes = filter_valid_passes(
+            files[:validate_passes_on],
+            passes,
+        )
         if invalid_passes:
             print(
                 "Filtered invalid passes: " + ", ".join(invalid_passes),
@@ -641,6 +665,7 @@ def main(argv: list[str] | None = None) -> int:
         "evaluate_shifts": args.sequence_shifts and not args.no_sequence_shifts,
         "pass_count": len(passes),
         "invalid_passes_filtered": invalid_passes,
+        "validate_passes_on": validate_passes_on,
         "ppo_config": str(ppo_config) if ppo_config else None,
         "ppo_checkpoint": str(ppo_checkpoint) if ppo_checkpoint else None,
     }
