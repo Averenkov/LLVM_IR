@@ -159,20 +159,29 @@ attributes #0 = { nounwind }
         self.assertEqual(uris, ["benchmark://chstone-v0/aes", "benchmark://mibench-v1/qsort"])
         self.assertEqual(
             builder.benchmark_short_name(FakeBenchmark("benchmark://npb-v0/1"), include_dataset=True),
-            "npb-v0_1",
+            "npb-v0__1",
         )
 
 
+    def test_benchmark_short_name_preserves_benchmark_underscores(self) -> None:
+        class FakeBenchmark:
+            uri = "benchmark://cbench-v1/qsort_main"
+
+        self.assertEqual(
+            builder.benchmark_short_name(FakeBenchmark(), include_dataset=True),
+            "cbench-v1__qsort_main",
+        )
+
     def test_build_dataset_orchestrates_compiler_gym_and_llvm_tools(self) -> None:
         class FakeBenchmark:
-            uri = "benchmark://cbench-v1/qsort"
+            uri = "benchmark://cbench-v1/qsort_main"
 
         class FakeDataset:
             def __iter__(self):
-                return iter(["benchmark://cbench-v1/qsort"])
+                return iter(["benchmark://cbench-v1/qsort_main"])
 
             def benchmark(self, uri: str) -> FakeBenchmark:
-                self_uri = "benchmark://cbench-v1/qsort"
+                self_uri = "benchmark://cbench-v1/qsort_main"
                 if uri != self_uri:
                     raise AssertionError(uri)
                 return FakeBenchmark()
@@ -196,7 +205,7 @@ attributes #0 = { nounwind }
         fake_env = FakeEnv()
 
         def fake_extract(input_bc: Path, out_ll_dir: Path, runner=builder.run_tool):
-            self.assertEqual(input_bc.name, "qsort.bc")
+            self.assertEqual(input_bc.name, "cbench-v1__qsort_main.bc")
             (out_ll_dir / "large.ll").write_text("define i32 @large() {\n  ret i32 0\n}\n")
             (out_ll_dir / "small.ll").write_text("define i32 @small() {\n  ret i32 0\n}\n")
             return {"large.ll": 100, "small.ll": 1}
@@ -236,8 +245,11 @@ attributes #0 = { nounwind }
             self.assertEqual(rc, 0)
             self.assertTrue(fake_env.closed)
             self.assertEqual(len(fake_env.resets), 1)
-            self.assertEqual([path.name for path in assembled], ["qsort_large.bc"])
-            self.assertEqual((tmp_path / "out" / "qsort_large.bc").read_bytes(), b"assembled")
+            self.assertEqual([path.name for path in assembled], ["cbench-v1__qsort_main__large.bc"])
+            self.assertEqual(
+                (tmp_path / "out" / "cbench-v1__qsort_main__large.bc").read_bytes(),
+                b"assembled",
+            )
             self.assertFalse((tmp_path / "work").exists())
 
 

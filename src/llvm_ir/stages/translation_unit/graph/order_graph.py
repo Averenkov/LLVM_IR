@@ -112,10 +112,14 @@ class PassOrderGraph:
 def benchmark_id_from_function_name(function_name: str) -> str:
     """Infer the benchmark id from a per-function bitcode file name.
 
-    Dataset files are named as `<suite>_<benchmark>_<function>.bc`, for example
-    `tensorflow-v0_1985_<mangled-function>.bc`.
+    New dataset files are named as `<suite>__<benchmark>__<function>.bc`, for
+    example `cbench-v1__qsort_main__main.bc`. Older files named as
+    `<suite>_<benchmark>_<function>.bc` are still supported for existing runs.
     """
     stem = Path(function_name).stem
+    parts = stem.split("__", 2)
+    if len(parts) >= 2:
+        return f"{parts[0]}_{parts[1]}"
     parts = stem.split("_", 2)
     if len(parts) >= 2:
         return f"{parts[0]}_{parts[1]}"

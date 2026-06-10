@@ -283,6 +283,18 @@ class TranslationUnitContractTests(unittest.TestCase):
             benchmark_id_from_function_name("chstone-v0_gsm_Autocorrelation.bc"),
             "chstone-v0_gsm",
         )
+        self.assertEqual(
+            benchmark_id_from_function_name("chstone-v0_adpcm_decode.bc"),
+            "chstone-v0_adpcm",
+        )
+        self.assertEqual(
+            benchmark_id_from_function_name("mibench-v1_lame-newmdct-1_mdct.bc"),
+            "mibench-v1_lame-newmdct-1",
+        )
+        self.assertEqual(
+            benchmark_id_from_function_name("cbench-v1__qsort_main__main.bc"),
+            "cbench-v1_qsort_main",
+        )
 
     def test_load_function_pass_results_from_report(self) -> None:
         report = {
@@ -757,6 +769,10 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(
             benchmark_uri_from_id("mibench-v1_lame-newmdct-1"),
             "benchmark://mibench-v1/lame-newmdct-1",
+        )
+        self.assertEqual(
+            benchmark_uri_from_id("cbench-v1_qsort_main"),
+            "benchmark://cbench-v1/qsort_main",
         )
 
     def test_load_heuristic_sequences_reads_paths(self) -> None:

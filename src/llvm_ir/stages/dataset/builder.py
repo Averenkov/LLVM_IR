@@ -204,10 +204,16 @@ def iter_benchmark_uris(env: Any, benchmark_uris: list[str], max_benchmarks: int
 
 
 def benchmark_short_name(benchmark: Any, *, include_dataset: bool = False) -> str:
-    """Convert a CompilerGym benchmark URI to a safe dataset file prefix."""
+    """Convert a CompilerGym benchmark URI to a safe dataset file prefix.
+
+    New datasets include the suite name and use ``__`` between suite and benchmark
+    so benchmark names may safely contain underscores. The ``include_dataset``
+    flag is kept for compatibility with older callers.
+    """
     uri = str(benchmark.uri)
     if include_dataset:
-        return sanitize_filename(uri.removeprefix("benchmark://"))
+        suite, benchmark_name = uri.removeprefix("benchmark://").split("/", 1)
+        return f"{sanitize_filename(suite)}__{sanitize_filename(benchmark_name)}"
     return sanitize_filename(uri.rsplit("/", 1)[-1])
 
 
@@ -257,13 +263,11 @@ def build_dataset(
         if benchmark_file:
             benchmark_uris = read_benchmark_uris(Path(benchmark_file))
             benchmarks = iter_benchmark_uris(env, benchmark_uris, args.max_benchmarks)
-            include_dataset_in_name = True
         else:
             benchmarks = iter_benchmarks(env, args.dataset, args.max_benchmarks)
-            include_dataset_in_name = False
 
         for benchmark in benchmarks:
-            name = benchmark_short_name(benchmark, include_dataset=include_dataset_in_name)
+            name = benchmark_short_name(benchmark, include_dataset=True)
             bc_path = input_bcs_dir / f"{name}.bc"
 
             print(f"[2/4] Benchmark {name}: write_bitcode -> {bc_path.name}")
@@ -298,7 +302,7 @@ def build_dataset(
                 for ll_fname, _count in selected:
                     src = tmp_funcs / ll_fname
                     func_stem = Path(ll_fname).stem
-                    dst = input_functions_dir / f"{name}_{func_stem}.ll"
+                    dst = input_functions_dir / f"{name}__{func_stem}.ll"
                     shutil.copy(src, dst)
                     functions_kept += 1
 
