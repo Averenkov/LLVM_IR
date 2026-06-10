@@ -42,7 +42,7 @@ class PipelineIntegrationTests(unittest.TestCase):
                 self.closed = True
 
         def fake_extract(input_bc: Path, out_ll_dir: Path, runner=dataset_builder.run_tool):
-            self.assertEqual(input_bc.name, "unit.bc")
+            self.assertEqual(input_bc.name, "demo-v0__unit.bc")
             (out_ll_dir / "large.ll").write_text(
                 "define i32 @large() {\n  ret i32 0\n}\n",
                 encoding="utf-8",
@@ -86,7 +86,7 @@ class PipelineIntegrationTests(unittest.TestCase):
 
             self.assertEqual(rc, 0)
             bitcode_files = pass_search.select_bitcode_files(dataset_dir, limit=0, seed=1)
-            self.assertEqual([path.name for path in bitcode_files], ["unit_large.bc"])
+            self.assertEqual([path.name for path in bitcode_files], ["demo-v0__unit__large.bc"])
 
             def fake_apply(_input_bc: Path, _passes: list[str], output_bc: Path) -> None:
                 output_bc.write_bytes(b"optimized bc")
@@ -123,7 +123,7 @@ class PipelineIntegrationTests(unittest.TestCase):
                     rng=random.Random(1),
                 )
 
-            self.assertEqual(row["function"], "unit_large.bc")
+            self.assertEqual(row["function"], "demo-v0__unit__large.bc")
             self.assertEqual(row["search_algorithm"], "cem")
             self.assertEqual(row["cem_delta"], 3)
             self.assertEqual(row["cem_best_passes"], ["good-pass"])
