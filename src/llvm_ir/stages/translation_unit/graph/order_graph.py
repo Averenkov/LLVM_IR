@@ -118,7 +118,7 @@ def benchmark_id_from_function_name(function_name: str) -> str:
     """
     stem = Path(function_name).stem
     parts = stem.split("__", 2)
-    if len(parts) >= 2:
+    if len(parts) == 3 and "_" not in parts[0]:
         return f"{parts[0]}_{parts[1]}"
     parts = stem.split("_", 2)
     if len(parts) >= 2:

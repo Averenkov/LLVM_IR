@@ -292,6 +292,18 @@ class TranslationUnitContractTests(unittest.TestCase):
             "mibench-v1_lame-newmdct-1",
         )
         self.assertEqual(
+            benchmark_id_from_function_name("mibench-v1_jpeg-c_astex_codelet__2.bc"),
+            "mibench-v1_jpeg-c",
+        )
+        self.assertEqual(
+            benchmark_id_from_function_name("opencv-v0_4_ZNSt3__116__pad_and_output.bc"),
+            "opencv-v0_4",
+        )
+        self.assertEqual(
+            benchmark_id_from_function_name("tensorflow-v0_1985_ZN5Eigen__internal.bc"),
+            "tensorflow-v0_1985",
+        )
+        self.assertEqual(
             benchmark_id_from_function_name("cbench-v1__qsort_main__main.bc"),
             "cbench-v1_qsort_main",
         )
