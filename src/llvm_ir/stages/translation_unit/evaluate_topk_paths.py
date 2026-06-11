@@ -8,6 +8,7 @@ import re
 import shutil
 import tempfile
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,23 @@ from llvm_ir.stages.translation_unit.path_scoring import score_path
 
 PathGenerator = Callable[[PassOrderGraph, argparse.Namespace], list[list[str]]]
 INSTRUCTION_LINE_RE = re.compile(r"^\s*[0-9a-fA-F]+:\s")
+
+
+@dataclass(frozen=True)
+class SuperSegmentCandidate:
+    index: int
+    passes: tuple[str, ...]
+    vertex_delta: int
+    graph_score: int
+
+
+@dataclass(frozen=True)
+class SuperPathCandidate:
+    segment_indexes: tuple[int, ...]
+    passes: tuple[str, ...]
+    score: int
+    vertex_delta: int
+    edge_score: int
 
 
 def measure_machine_instruction_count(bitcode_path: Path, workdir: Path) -> int:
@@ -89,6 +107,8 @@ def generate_topk_paths(
             top_starts=args.top_starts,
             paths_per_start=args.paths_per_start,
         )
+    if heuristic == "cycle_breaking_superpath_topk":
+        return _generate_superpath_segments(graph, args)
     if heuristic in {"random_walk_top10", "random_walk_topk"}:
         return random_walk_top_paths(
             graph,
@@ -110,6 +130,132 @@ def generate_topk_paths(
             top_k=args.top_k,
         )
     raise ValueError(f"Unknown top-k translation-unit heuristic: {heuristic}")
+
+
+def _rank_path_for_segments(graph: PassOrderGraph, passes: tuple[str, ...]) -> tuple[int, int, tuple[str, ...]]:
+    return (
+        score_path(graph, list(passes)).net_score,
+        len(passes),
+        tuple(reversed(passes)),
+    )
+
+
+def _generate_superpath_segments(
+    graph: PassOrderGraph,
+    args: argparse.Namespace,
+) -> list[list[str]]:
+    segment_min_length = max(1, int(getattr(args, "segment_min_length", 4)))
+    segment_max_length = max(segment_min_length, int(getattr(args, "segment_max_length", 6)))
+    segment_top_k = max(1, int(getattr(args, "segment_top_k", 250)))
+    raw_paths = cycle_breaking_top_start_paths(
+        graph,
+        config=CycleBreakingMaxPathConfig(
+            max_length=segment_max_length,
+            min_edge_weight=args.min_edge_weight,
+        ),
+        top_starts=args.top_starts,
+        paths_per_start=args.paths_per_start,
+    )
+    unique = {
+        tuple(path): path
+        for path in raw_paths
+        if segment_min_length <= len(path) <= segment_max_length
+    }
+    ranked = sorted(
+        unique,
+        key=lambda path: _rank_path_for_segments(graph, path),
+        reverse=True,
+    )
+    return [list(path) for path in ranked[:segment_top_k]]
+
+
+def _superpath_rank_key(candidate: SuperPathCandidate) -> tuple[int, int, int, int, tuple[str, ...]]:
+    return (
+        candidate.score,
+        candidate.vertex_delta,
+        candidate.edge_score,
+        -len(candidate.passes),
+        tuple(reversed(candidate.passes)),
+    )
+
+
+def _build_superpath_candidates(
+    graph: PassOrderGraph,
+    segments: list[SuperSegmentCandidate],
+    *,
+    top_k: int,
+    max_pass_length: int,
+    min_edge_weight: int,
+) -> list[SuperPathCandidate]:
+    if not segments:
+        return []
+    top_k = max(1, top_k)
+    if max_pass_length <= 0:
+        max_pass_length = max(len(segment.passes) for segment in segments)
+    min_segment_length = max(1, min(len(segment.passes) for segment in segments))
+    max_super_segments = max(1, max_pass_length // min_segment_length)
+
+    outgoing: dict[int, list[tuple[int, int]]] = {segment.index: [] for segment in segments}
+    by_index = {segment.index: segment for segment in segments}
+    for left in segments:
+        left_last = left.passes[-1]
+        for right in segments:
+            if left.index == right.index:
+                continue
+            edge_weight = graph.edge_counts.get((left_last, right.passes[0]), 0)
+            if edge_weight >= min_edge_weight:
+                outgoing[left.index].append((right.index, edge_weight))
+        outgoing[left.index].sort(key=lambda item: (-item[1], item[0]))
+
+    candidates: list[SuperPathCandidate] = []
+
+    def add_candidate(candidate: SuperPathCandidate) -> None:
+        candidates.append(candidate)
+
+    stack: list[SuperPathCandidate] = []
+    for segment in segments:
+        if len(segment.passes) > max_pass_length:
+            continue
+        candidate = SuperPathCandidate(
+            segment_indexes=(segment.index,),
+            passes=segment.passes,
+            score=segment.vertex_delta,
+            vertex_delta=segment.vertex_delta,
+            edge_score=0,
+        )
+        add_candidate(candidate)
+        stack.append(candidate)
+
+    while stack:
+        current = stack.pop()
+        if len(current.segment_indexes) >= max_super_segments:
+            continue
+        used = set(current.segment_indexes)
+        last_index = current.segment_indexes[-1]
+        for next_index, edge_weight in outgoing.get(last_index, []):
+            if next_index in used:
+                continue
+            next_segment = by_index[next_index]
+            next_passes = current.passes + next_segment.passes
+            if len(next_passes) > max_pass_length:
+                continue
+            candidate = SuperPathCandidate(
+                segment_indexes=current.segment_indexes + (next_index,),
+                passes=next_passes,
+                score=current.score + edge_weight + next_segment.vertex_delta,
+                vertex_delta=current.vertex_delta + next_segment.vertex_delta,
+                edge_score=current.edge_score + edge_weight,
+            )
+            add_candidate(candidate)
+            stack.append(candidate)
+
+    unique: dict[tuple[str, ...], SuperPathCandidate] = {}
+    for candidate in candidates:
+        current = unique.get(candidate.passes)
+        if current is None or _superpath_rank_key(candidate) > _superpath_rank_key(current):
+            unique[candidate.passes] = candidate
+    return sorted(unique.values(), key=_superpath_rank_key, reverse=True)[:top_k]
+
 
 
 def evaluate_candidate_with_prefix_cache(
@@ -245,52 +391,19 @@ def evaluate_topk_for_benchmark(
                 prefix_cache,
                 measure_instructions=measure_instructions,
             )
-            row = {
-                "benchmark": graph.benchmark,
-                "heuristic": heuristic,
-                "candidate_index": candidate_index,
-                "start_pass": passes[0] if passes else "",
-                "start_weight": graph.start_counts.get(passes[0], 0) if passes else 0,
-                "top_k": len(paths),
-                "bitcode_path": str(bitcode_path),
-                "baseline_size": baseline_size,
-                "oz_size": oz_size,
-                "oz_delta": baseline_size - oz_size if oz_size is not None else None,
-                "baseline_instruction_count": baseline_instruction_count,
-                "oz_instruction_count": oz_instruction_count,
-                "oz_instruction_delta": (
-                    baseline_instruction_count - oz_instruction_count
-                    if baseline_instruction_count is not None
-                    and oz_instruction_count is not None
-                    else None
-                ),
-                "final_size": result["final_size"],
-                "final_delta": baseline_size - int(result["final_size"]),
-                "best_size": result["best_size"],
-                "best_delta": baseline_size - int(result["best_size"]),
-                "best_prefix_len": result["best_prefix_len"],
-                "final_instruction_count": result["final_instruction_count"],
-                "final_instruction_delta": (
-                    baseline_instruction_count - result["final_instruction_count"]
-                    if baseline_instruction_count is not None
-                    and result["final_instruction_count"] is not None
-                    else None
-                ),
-                "best_instruction_count": result["best_instruction_count"],
-                "best_instruction_delta": (
-                    baseline_instruction_count - result["best_instruction_count"]
-                    if baseline_instruction_count is not None
-                    and result["best_instruction_count"] is not None
-                    else None
-                ),
-                "best_instruction_prefix_len": result["best_instruction_prefix_len"],
-                "passes": passes,
-                "best_passes": result["best_passes"],
-                "best_instruction_passes": result["best_instruction_passes"],
-                "graph_score": score_path(graph, passes).to_dict(),
-                "error": result["error"],
-                "error_kind": result["error_kind"],
-            }
+            row = _make_candidate_row(
+                graph=graph,
+                heuristic=heuristic,
+                candidate_index=candidate_index,
+                passes=passes,
+                result=result,
+                bitcode_path=bitcode_path,
+                baseline_size=baseline_size,
+                oz_size=oz_size,
+                baseline_instruction_count=baseline_instruction_count,
+                oz_instruction_count=oz_instruction_count,
+                top_k=len(paths),
+            )
             candidate_rows.append(row)
             if best_row is None or _selected_key(row) > _selected_key(best_row):
                 best_row = row
@@ -337,6 +450,216 @@ def evaluate_topk_for_benchmark(
         return dict(best_row), candidate_rows, len(prefix_cache)
 
 
+def _make_candidate_row(
+    *,
+    graph: PassOrderGraph,
+    heuristic: str,
+    candidate_index: int,
+    passes: list[str],
+    result: dict[str, Any],
+    bitcode_path: Path,
+    baseline_size: int,
+    oz_size: int | None,
+    baseline_instruction_count: int | None,
+    oz_instruction_count: int | None,
+    top_k: int,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row = {
+        "benchmark": graph.benchmark,
+        "heuristic": heuristic,
+        "candidate_index": candidate_index,
+        "start_pass": passes[0] if passes else "",
+        "start_weight": graph.start_counts.get(passes[0], 0) if passes else 0,
+        "top_k": top_k,
+        "bitcode_path": str(bitcode_path),
+        "baseline_size": baseline_size,
+        "oz_size": oz_size,
+        "oz_delta": baseline_size - oz_size if oz_size is not None else None,
+        "baseline_instruction_count": baseline_instruction_count,
+        "oz_instruction_count": oz_instruction_count,
+        "oz_instruction_delta": (
+            baseline_instruction_count - oz_instruction_count
+            if baseline_instruction_count is not None
+            and oz_instruction_count is not None
+            else None
+        ),
+        "final_size": result["final_size"],
+        "final_delta": baseline_size - int(result["final_size"]),
+        "best_size": result["best_size"],
+        "best_delta": baseline_size - int(result["best_size"]),
+        "best_prefix_len": result["best_prefix_len"],
+        "final_instruction_count": result["final_instruction_count"],
+        "final_instruction_delta": (
+            baseline_instruction_count - result["final_instruction_count"]
+            if baseline_instruction_count is not None
+            and result["final_instruction_count"] is not None
+            else None
+        ),
+        "best_instruction_count": result["best_instruction_count"],
+        "best_instruction_delta": (
+            baseline_instruction_count - result["best_instruction_count"]
+            if baseline_instruction_count is not None
+            and result["best_instruction_count"] is not None
+            else None
+        ),
+        "best_instruction_prefix_len": result["best_instruction_prefix_len"],
+        "passes": passes,
+        "best_passes": result["best_passes"],
+        "best_instruction_passes": result["best_instruction_passes"],
+        "graph_score": score_path(graph, passes).to_dict(),
+        "error": result["error"],
+        "error_kind": result["error_kind"],
+    }
+    if extra:
+        row.update(extra)
+    return row
+
+
+def evaluate_superpath_for_benchmark(
+    graph: PassOrderGraph,
+    bitcode_path: Path,
+    *,
+    args: argparse.Namespace,
+    measure_instructions: bool = False,
+) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
+    with tempfile.TemporaryDirectory(prefix="llvm-ir-tu-superpath-eval-") as tmp_str:
+        workdir = Path(tmp_str)
+        baseline_size = measure_text_size(bitcode_path, workdir)
+        baseline_instruction_count = (
+            measure_machine_instruction_count(bitcode_path, workdir)
+            if measure_instructions
+            else None
+        )
+        oz_size = None
+        oz_instruction_count = None
+        try:
+            oz_bc = workdir / "oz.bc"
+            optimize_oz(bitcode_path, oz_bc)
+            oz_size = measure_text_size(oz_bc, workdir)
+            if measure_instructions:
+                oz_instruction_count = measure_machine_instruction_count(oz_bc, workdir)
+        except Exception:
+            oz_size = None
+
+        prefix_cache: dict[tuple[str, ...], dict[str, Any]] = {
+            (): {"bc": str(bitcode_path), "size": baseline_size, "error": ""}
+        }
+        if measure_instructions:
+            prefix_cache[()]["instruction_count"] = baseline_instruction_count
+
+        segment_paths = _generate_superpath_segments(graph, args)
+        segment_candidates: list[SuperSegmentCandidate] = []
+        segment_failures = 0
+        for segment_index, segment_path in enumerate(segment_paths, start=1):
+            result = evaluate_candidate_with_prefix_cache(
+                segment_path,
+                workdir,
+                prefix_cache,
+                measure_instructions=measure_instructions,
+            )
+            if result["error"]:
+                segment_failures += 1
+                continue
+            segment_candidates.append(
+                SuperSegmentCandidate(
+                    index=segment_index,
+                    passes=tuple(segment_path),
+                    vertex_delta=baseline_size - int(result["final_size"]),
+                    graph_score=score_path(graph, segment_path).net_score,
+                )
+            )
+
+        superpath_candidates = _build_superpath_candidates(
+            graph,
+            segment_candidates,
+            top_k=args.top_k,
+            max_pass_length=args.max_length,
+            min_edge_weight=args.min_edge_weight,
+        )
+
+        candidate_rows = []
+        best_row: dict[str, Any] | None = None
+        for candidate_index, candidate in enumerate(superpath_candidates, start=1):
+            passes = list(candidate.passes)
+            result = evaluate_candidate_with_prefix_cache(
+                passes,
+                workdir,
+                prefix_cache,
+                measure_instructions=measure_instructions,
+            )
+            row = _make_candidate_row(
+                graph=graph,
+                heuristic=args.heuristic,
+                candidate_index=candidate_index,
+                passes=passes,
+                result=result,
+                bitcode_path=bitcode_path,
+                baseline_size=baseline_size,
+                oz_size=oz_size,
+                baseline_instruction_count=baseline_instruction_count,
+                oz_instruction_count=oz_instruction_count,
+                top_k=len(superpath_candidates),
+                extra={
+                    "superpath_score": candidate.score,
+                    "superpath_vertex_delta": candidate.vertex_delta,
+                    "superpath_edge_score": candidate.edge_score,
+                    "superpath_segments": list(candidate.segment_indexes),
+                    "segment_candidate_count": len(segment_paths),
+                    "segment_valid_count": len(segment_candidates),
+                    "segment_failures": segment_failures,
+                },
+            )
+            candidate_rows.append(row)
+            if best_row is None or _selected_key(row) > _selected_key(best_row):
+                best_row = row
+
+        if best_row is None:
+            best_row = {
+                "benchmark": graph.benchmark,
+                "heuristic": args.heuristic,
+                "candidate_index": 0,
+                "start_pass": "",
+                "start_weight": 0,
+                "top_k": len(superpath_candidates),
+                "bitcode_path": str(bitcode_path),
+                "baseline_size": baseline_size,
+                "oz_size": oz_size,
+                "oz_delta": baseline_size - oz_size if oz_size is not None else None,
+                "baseline_instruction_count": baseline_instruction_count,
+                "oz_instruction_count": oz_instruction_count,
+                "oz_instruction_delta": (
+                    baseline_instruction_count - oz_instruction_count
+                    if baseline_instruction_count is not None
+                    and oz_instruction_count is not None
+                    else None
+                ),
+                "final_size": baseline_size,
+                "final_delta": 0,
+                "best_size": baseline_size,
+                "best_delta": 0,
+                "best_prefix_len": 0,
+                "final_instruction_count": baseline_instruction_count,
+                "final_instruction_delta": 0 if baseline_instruction_count is not None else None,
+                "best_instruction_count": baseline_instruction_count,
+                "best_instruction_delta": 0 if baseline_instruction_count is not None else None,
+                "best_instruction_prefix_len": 0,
+                "passes": [],
+                "best_passes": [],
+                "best_instruction_passes": [],
+                "graph_score": {},
+                "error": "no superpath candidates",
+                "error_kind": "full_failure",
+                "segment_candidate_count": len(segment_paths),
+                "segment_valid_count": len(segment_candidates),
+                "segment_failures": segment_failures,
+            }
+        prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
+        best_row["prefix_failures"] = prefix_failures
+        return dict(best_row), candidate_rows, len(prefix_cache)
+
+
+
 def _selected_key(row: dict[str, Any]) -> tuple[int, int, int]:
     return (
         int(row["best_delta"]),
@@ -363,14 +686,22 @@ def build_report(
             flush=True,
         )
         graph = graphs[benchmark]
-        paths = generate_topk_paths(graph, args.heuristic, args)
-        selected, candidates, cache_count = evaluate_topk_for_benchmark(
-            graph,
-            bitcode_paths[benchmark],
-            paths,
-            heuristic=args.heuristic,
-            measure_instructions=args.measure_instructions,
-        )
+        if args.heuristic == "cycle_breaking_superpath_topk":
+            selected, candidates, cache_count = evaluate_superpath_for_benchmark(
+                graph,
+                bitcode_paths[benchmark],
+                args=args,
+                measure_instructions=args.measure_instructions,
+            )
+        else:
+            paths = generate_topk_paths(graph, args.heuristic, args)
+            selected, candidates, cache_count = evaluate_topk_for_benchmark(
+                graph,
+                bitcode_paths[benchmark],
+                paths,
+                heuristic=args.heuristic,
+                measure_instructions=args.measure_instructions,
+            )
         selected_rows.append(selected)
         candidate_rows.extend(candidates)
         prefix_cache_counts[benchmark] = cache_count
@@ -411,6 +742,9 @@ def make_report_payload(
             "random_walks": args.random_walks,
             "random_seed": args.random_seed,
             "exhaustive_length": args.exhaustive_length,
+            "segment_top_k": getattr(args, "segment_top_k", 250),
+            "segment_min_length": getattr(args, "segment_min_length", 4),
+            "segment_max_length": getattr(args, "segment_max_length", 6),
             "measure_instructions": args.measure_instructions,
         },
         "summary": summary,
@@ -521,6 +855,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "cycle_breaking_max_path_top10",
             "cycle_breaking_max_path_topk",
             "cycle_breaking_top_starts_top_paths",
+            "cycle_breaking_superpath_topk",
             "random_walk_top10",
             "random_walk_topk",
             "exhaustive_len6_top10",
@@ -534,6 +869,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--random-walks", type=int, default=2048)
     parser.add_argument("--random-seed", type=int, default=7)
     parser.add_argument("--exhaustive-length", type=int, default=6)
+    parser.add_argument("--segment-top-k", type=int, default=250)
+    parser.add_argument("--segment-min-length", type=int, default=4)
+    parser.add_argument("--segment-max-length", type=int, default=6)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
         "--measure-instructions",
@@ -566,6 +904,12 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--top-starts must be positive")
     if args.paths_per_start <= 0:
         raise ValueError("--paths-per-start must be positive")
+    if args.segment_top_k <= 0:
+        raise ValueError("--segment-top-k must be positive")
+    if args.segment_min_length <= 0:
+        raise ValueError("--segment-min-length must be positive")
+    if args.segment_max_length < args.segment_min_length:
+        raise ValueError("--segment-max-length must be >= --segment-min-length")
     if args.overwrite_bitcode and args.bitcode_dir.exists():
         shutil.rmtree(args.bitcode_dir)
     graphs = load_graphs_from_report(args.graph)

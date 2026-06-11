@@ -837,6 +837,44 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertGreaterEqual(len(paths), 1)
         self.assertLessEqual(len(paths), 5)
 
+    def test_superpath_candidates_combine_segment_delta_and_edge_weight(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.edge_counts[("d", "e")] = 20
+        segments = [
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=1,
+                passes=("a", "b", "c", "d"),
+                vertex_delta=10,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=2,
+                passes=("e", "f", "g", "h"),
+                vertex_delta=5,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=3,
+                passes=("x", "y", "z", "q"),
+                vertex_delta=30,
+                graph_score=0,
+            ),
+        ]
+
+        candidates = evaluate_topk_paths._build_superpath_candidates(
+            graph,
+            segments,
+            top_k=2,
+            max_pass_length=12,
+            min_edge_weight=1,
+        )
+
+        self.assertEqual(candidates[0].passes, ("a", "b", "c", "d", "e", "f", "g", "h"))
+        self.assertEqual(candidates[0].score, 35)
+        self.assertEqual(candidates[0].vertex_delta, 15)
+        self.assertEqual(candidates[0].edge_score, 20)
+        self.assertEqual(candidates[1].passes, ("x", "y", "z", "q"))
+
     def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
         graph.nodes.update(["a", "b"])
