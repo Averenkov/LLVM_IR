@@ -96,6 +96,26 @@ def measure_machine_instruction_count(bitcode_path: Path, workdir: Path) -> int:
         obj_path.unlink(missing_ok=True)
 
 
+def measure_text_and_instruction_count(
+    bitcode_path: Path,
+    workdir: Path,
+) -> tuple[int, int]:
+    obj_path = workdir / f"{bitcode_path.stem}.metrics.o"
+    try:
+        run_cmd(["llc", "-filetype=obj", str(bitcode_path), "-o", str(obj_path)])
+        size_output = run_cmd(["llvm-size", str(obj_path)]).stdout.strip().splitlines()
+        if len(size_output) < 2:
+            raise RuntimeError(f"unexpected llvm-size output: {size_output!r}")
+        text_size = int(size_output[1].split()[0])
+        disassembly = run_cmd(["llvm-objdump", "-d", str(obj_path)]).stdout.splitlines()
+        instruction_count = sum(
+            1 for line in disassembly if INSTRUCTION_LINE_RE.match(line)
+        )
+        return text_size, instruction_count
+    finally:
+        obj_path.unlink(missing_ok=True)
+
+
 def generate_topk_paths(
     graph: PassOrderGraph,
     heuristic: str,
@@ -457,7 +477,9 @@ def evaluate_candidate_with_prefix_cache(
     best_size = int(baseline["size"])
     best_prefix_len = 0
     best_passes: list[str] = []
-    baseline_instruction_count = baseline.get("instruction_count")
+    baseline_instruction_count = (
+        baseline.get("instruction_count") if measure_instructions else None
+    )
     best_instruction_count = (
         int(baseline_instruction_count)
         if baseline_instruction_count is not None
@@ -474,17 +496,21 @@ def evaluate_candidate_with_prefix_cache(
             output_bc = workdir / f"prefix_{len(prefix_cache):05d}.bc"
             try:
                 apply_pass_sequence(Path(parent["bc"]), [pass_name], output_bc)
-                size = measure_text_size(output_bc, workdir)
+                if measure_instructions:
+                    size, instruction_count = measure_text_and_instruction_count(
+                        output_bc,
+                        workdir,
+                    )
+                else:
+                    size = measure_text_size(output_bc, workdir)
+                    instruction_count = None
                 entry = {
                     "bc": str(output_bc),
                     "size": size,
                     "error": "",
                 }
-                if measure_instructions:
-                    entry["instruction_count"] = measure_machine_instruction_count(
-                        output_bc,
-                        workdir,
-                    )
+                if instruction_count is not None:
+                    entry["instruction_count"] = instruction_count
                 prefix_cache[next_key] = entry
             except Exception as exc:  # noqa: BLE001
                 entry = {
@@ -537,6 +563,72 @@ def evaluate_candidate_with_prefix_cache(
     }
 
 
+def measure_deferred_candidate_instructions(
+    passes: list[str],
+    workdir: Path,
+    prefix_cache: dict[tuple[str, ...], dict[str, Any]],
+) -> tuple[dict[str, Any], int]:
+    baseline_instruction_count = prefix_cache[()].get("instruction_count")
+    if baseline_instruction_count is None:
+        raise ValueError("baseline instruction count is required for deferred measurement")
+
+    best_instruction_count = int(baseline_instruction_count)
+    best_instruction_prefix_len = 0
+    best_instruction_passes: list[str] = []
+    final_instruction_count = int(baseline_instruction_count)
+    current_key: tuple[str, ...] = ()
+    instruction_eval_cost = 0
+
+    for index, pass_name in enumerate(passes, start=1):
+        next_key = current_key + (pass_name,)
+        entry = prefix_cache.get(next_key)
+        if entry is None or entry.get("error"):
+            break
+        if entry.get("instruction_count") is None:
+            entry["instruction_count"] = measure_machine_instruction_count(
+                Path(entry["bc"]),
+                workdir,
+            )
+            instruction_eval_cost += 1
+        current_key = next_key
+        final_instruction_count = int(entry["instruction_count"])
+        if final_instruction_count < best_instruction_count:
+            best_instruction_count = final_instruction_count
+            best_instruction_prefix_len = index
+            best_instruction_passes = passes[:index]
+
+    return (
+        {
+            "final_instruction_count": final_instruction_count,
+            "best_instruction_count": best_instruction_count,
+            "best_instruction_prefix_len": best_instruction_prefix_len,
+            "best_instruction_passes": best_instruction_passes,
+        },
+        instruction_eval_cost,
+    )
+
+
+def apply_instruction_result_to_row(
+    row: dict[str, Any],
+    instruction_result: dict[str, Any],
+    baseline_instruction_count: int,
+) -> None:
+    final_instruction_count = int(instruction_result["final_instruction_count"])
+    best_instruction_count = int(instruction_result["best_instruction_count"])
+    row.update(
+        {
+            "final_instruction_count": final_instruction_count,
+            "final_instruction_delta": baseline_instruction_count - final_instruction_count,
+            "best_instruction_count": best_instruction_count,
+            "best_instruction_delta": baseline_instruction_count - best_instruction_count,
+            "best_instruction_prefix_len": instruction_result[
+                "best_instruction_prefix_len"
+            ],
+            "best_instruction_passes": instruction_result["best_instruction_passes"],
+        }
+    )
+
+
 def evaluate_topk_for_benchmark(
     graph: PassOrderGraph,
     bitcode_path: Path,
@@ -544,23 +636,33 @@ def evaluate_topk_for_benchmark(
     *,
     heuristic: str,
     measure_instructions: bool = False,
+    instruction_measurement: str = "deferred",
 ) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
     with tempfile.TemporaryDirectory(prefix="llvm-ir-tu-topk-eval-") as tmp_str:
         workdir = Path(tmp_str)
-        baseline_size = measure_text_size(bitcode_path, workdir)
-        baseline_instruction_count = (
-            measure_machine_instruction_count(bitcode_path, workdir)
-            if measure_instructions
-            else None
+        deferred_instructions = (
+            measure_instructions and instruction_measurement == "deferred"
         )
+        if measure_instructions:
+            baseline_size, baseline_instruction_count = measure_text_and_instruction_count(
+                bitcode_path,
+                workdir,
+            )
+        else:
+            baseline_size = measure_text_size(bitcode_path, workdir)
+            baseline_instruction_count = None
         oz_size = None
         oz_instruction_count = None
         try:
             oz_bc = workdir / "oz.bc"
             optimize_oz(bitcode_path, oz_bc)
-            oz_size = measure_text_size(oz_bc, workdir)
             if measure_instructions:
-                oz_instruction_count = measure_machine_instruction_count(oz_bc, workdir)
+                oz_size, oz_instruction_count = measure_text_and_instruction_count(
+                    oz_bc,
+                    workdir,
+                )
+            else:
+                oz_size = measure_text_size(oz_bc, workdir)
         except Exception:
             oz_size = None
 
@@ -576,7 +678,7 @@ def evaluate_topk_for_benchmark(
                 passes,
                 workdir,
                 prefix_cache,
-                measure_instructions=measure_instructions,
+                measure_instructions=measure_instructions and not deferred_instructions,
             )
             row = _make_candidate_row(
                 graph=graph,
@@ -594,6 +696,25 @@ def evaluate_topk_for_benchmark(
             candidate_rows.append(row)
             if best_row is None or _selected_key(row) > _selected_key(best_row):
                 best_row = row
+
+        instruction_eval_cost = 0
+        if (
+            deferred_instructions
+            and best_row is not None
+            and baseline_instruction_count is not None
+        ):
+            instruction_result, instruction_eval_cost = (
+                measure_deferred_candidate_instructions(
+                    list(best_row["passes"]),
+                    workdir,
+                    prefix_cache,
+                )
+            )
+            apply_instruction_result_to_row(
+                best_row,
+                instruction_result,
+                baseline_instruction_count,
+            )
 
         if best_row is None:
             best_row = {
@@ -634,6 +755,8 @@ def evaluate_topk_for_benchmark(
             }
         prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
         best_row["prefix_failures"] = prefix_failures
+        best_row["instruction_measurement"] = instruction_measurement
+        best_row["instruction_eval_cost"] = instruction_eval_cost
         return dict(best_row), candidate_rows, len(prefix_cache)
 
 
@@ -709,23 +832,33 @@ def evaluate_superpath_for_benchmark(
     *,
     args: argparse.Namespace,
     measure_instructions: bool = False,
+    instruction_measurement: str = "deferred",
 ) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
     with tempfile.TemporaryDirectory(prefix="llvm-ir-tu-superpath-eval-") as tmp_str:
         workdir = Path(tmp_str)
-        baseline_size = measure_text_size(bitcode_path, workdir)
-        baseline_instruction_count = (
-            measure_machine_instruction_count(bitcode_path, workdir)
-            if measure_instructions
-            else None
+        deferred_instructions = (
+            measure_instructions and instruction_measurement == "deferred"
         )
+        if measure_instructions:
+            baseline_size, baseline_instruction_count = measure_text_and_instruction_count(
+                bitcode_path,
+                workdir,
+            )
+        else:
+            baseline_size = measure_text_size(bitcode_path, workdir)
+            baseline_instruction_count = None
         oz_size = None
         oz_instruction_count = None
         try:
             oz_bc = workdir / "oz.bc"
             optimize_oz(bitcode_path, oz_bc)
-            oz_size = measure_text_size(oz_bc, workdir)
             if measure_instructions:
-                oz_instruction_count = measure_machine_instruction_count(oz_bc, workdir)
+                oz_size, oz_instruction_count = measure_text_and_instruction_count(
+                    oz_bc,
+                    workdir,
+                )
+            else:
+                oz_size = measure_text_size(oz_bc, workdir)
         except Exception:
             oz_size = None
 
@@ -758,7 +891,7 @@ def evaluate_superpath_for_benchmark(
                 segment_path,
                 workdir,
                 prefix_cache,
-                measure_instructions=measure_instructions,
+                measure_instructions=measure_instructions and not deferred_instructions,
             )
             if result["error"]:
                 segment_failures += 1
@@ -832,7 +965,7 @@ def evaluate_superpath_for_benchmark(
                 passes,
                 workdir,
                 prefix_cache,
-                measure_instructions=measure_instructions,
+                measure_instructions=measure_instructions and not deferred_instructions,
             )
             row = _make_candidate_row(
                 graph=graph,
@@ -872,6 +1005,25 @@ def evaluate_superpath_for_benchmark(
         superpath_eval_cost = len(prefix_cache) - superpath_eval_start_count
         for row in candidate_rows:
             row["superpath_eval_cost"] = superpath_eval_cost
+
+        instruction_eval_cost = 0
+        if (
+            deferred_instructions
+            and best_row is not None
+            and baseline_instruction_count is not None
+        ):
+            instruction_result, instruction_eval_cost = (
+                measure_deferred_candidate_instructions(
+                    list(best_row["passes"]),
+                    workdir,
+                    prefix_cache,
+                )
+            )
+            apply_instruction_result_to_row(
+                best_row,
+                instruction_result,
+                baseline_instruction_count,
+            )
 
         if best_row is None:
             best_row = {
@@ -923,6 +1075,8 @@ def evaluate_superpath_for_benchmark(
         prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
         best_row["prefix_failures"] = prefix_failures
         best_row["superpath_eval_cost"] = superpath_eval_cost
+        best_row["instruction_measurement"] = instruction_measurement
+        best_row["instruction_eval_cost"] = instruction_eval_cost
         return dict(best_row), candidate_rows, len(prefix_cache)
 
 
@@ -959,6 +1113,7 @@ def build_report(
                 bitcode_paths[benchmark],
                 args=args,
                 measure_instructions=args.measure_instructions,
+                instruction_measurement=args.instruction_measurement,
             )
         else:
             paths = generate_topk_paths(graph, args.heuristic, args)
@@ -968,6 +1123,7 @@ def build_report(
                 paths,
                 heuristic=args.heuristic,
                 measure_instructions=args.measure_instructions,
+                instruction_measurement=args.instruction_measurement,
             )
         selected_rows.append(selected)
         candidate_rows.extend(candidates)
@@ -1020,6 +1176,7 @@ def make_report_payload(
             "tiny_graph_threshold": getattr(args, "tiny_graph_threshold", 4),
             "superpath_eval_top_k": getattr(args, "superpath_eval_top_k", 0),
             "measure_instructions": args.measure_instructions,
+            "instruction_measurement": getattr(args, "instruction_measurement", "deferred"),
         },
         "summary": summary,
         "prefix_cache_counts": dict(prefix_cache_counts),
@@ -1168,6 +1325,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--measure-instructions",
         action="store_true",
         help="Also measure machine instruction counts with llvm-objdump -d.",
+    )
+    parser.add_argument(
+        "--instruction-measurement",
+        choices=["deferred", "eager"],
+        default="deferred",
+        help=(
+            "Measure instructions only for the size-selected candidate (deferred) "
+            "or for every prefix (eager)."
+        ),
     )
     parser.add_argument(
         "--site-data",

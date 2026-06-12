@@ -602,6 +602,16 @@ score, а используется только как tie-breaker. Основн
 | `segments_truncated_to_best_prefix` | Число сегментов, усечённых до полезного префикса |
 | `segment_delta_filter_bypassed` | Пул восстановлен top-3 сегментами без delta-фильтра |
 
+При `--measure-instructions` по умолчанию используется
+`--instruction-measurement deferred`: все кандидаты сначала сравниваются только
+по размеру, затем machine instruction count измеряется лишь для префиксов
+выбранного по размеру кандидата. Baseline и `-Oz` измеряются сразу. Один object
+file используется одновременно для `llvm-size` и `llvm-objdump`, поэтому eager
+режим тоже не запускает `llc` дважды. `--instruction-measurement eager` оставлен
+для полной диагностики instruction count каждого candidate row. Поле
+`instruction_eval_cost` показывает число дополнительных instruction-компиляций
+в deferred-фазе; instruction-поля неизбранных candidate rows остаются `null`.
+
 Бюджет реальных запусков отражается в отчёте: `segment_eval_cost` показывает
 число cache miss на фазе измерения сегментов, `superpath_eval_cost` - число
 cache miss на фазе оценки склеек. Параметр `--superpath-eval-top-k` позволяет

@@ -1648,8 +1648,17 @@ class TranslationUnitContractTests(unittest.TestCase):
         def fake_measure(bitcode_path: Path, workdir: Path) -> int:
             return sizes.get(str(bitcode_path), 100)
 
+        instruction_measurements: list[str] = []
+
         def fake_instruction_count(bitcode_path: Path, workdir: Path) -> int:
+            instruction_measurements.append(str(bitcode_path))
             return instructions.get(str(bitcode_path), 50)
+
+        def fake_combined_measure(bitcode_path: Path, workdir: Path) -> tuple[int, int]:
+            return (
+                sizes.get(str(bitcode_path), 100),
+                instructions.get(str(bitcode_path), 50),
+            )
 
         def fake_optimize(input_bc: Path, output_bc: Path) -> None:
             sizes[str(output_bc)] = 90
@@ -1663,11 +1672,13 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         original_measure = evaluate_topk_paths.measure_text_size
         original_instruction_count = evaluate_topk_paths.measure_machine_instruction_count
+        original_combined_measure = evaluate_topk_paths.measure_text_and_instruction_count
         original_optimize = evaluate_topk_paths.optimize_oz
         original_apply = evaluate_topk_paths.apply_pass_sequence
         try:
             evaluate_topk_paths.measure_text_size = fake_measure
             evaluate_topk_paths.measure_machine_instruction_count = fake_instruction_count
+            evaluate_topk_paths.measure_text_and_instruction_count = fake_combined_measure
             evaluate_topk_paths.optimize_oz = fake_optimize
             evaluate_topk_paths.apply_pass_sequence = fake_apply
             selected, candidates, _ = evaluate_topk_paths.evaluate_topk_for_benchmark(
@@ -1680,12 +1691,17 @@ class TranslationUnitContractTests(unittest.TestCase):
         finally:
             evaluate_topk_paths.measure_text_size = original_measure
             evaluate_topk_paths.measure_machine_instruction_count = original_instruction_count
+            evaluate_topk_paths.measure_text_and_instruction_count = original_combined_measure
             evaluate_topk_paths.optimize_oz = original_optimize
             evaluate_topk_paths.apply_pass_sequence = original_apply
 
         self.assertEqual(selected["candidate_index"], 2)
         self.assertEqual(selected["baseline_instruction_count"], 50)
         self.assertEqual(selected["best_instruction_delta"], 12)
+        self.assertEqual(selected["instruction_measurement"], "deferred")
+        self.assertEqual(selected["instruction_eval_cost"], 1)
+        self.assertEqual(len(instruction_measurements), 1)
+        self.assertIsNone(candidates[0]["best_instruction_count"])
         summary = evaluate_topk_paths.make_report_payload(
             type(
                 "Args",
@@ -1711,6 +1727,44 @@ class TranslationUnitContractTests(unittest.TestCase):
         )["summary"]["cycle_breaking_diverse_starts_top10"]
         self.assertEqual(summary["total_best_instruction_delta"], 12)
         self.assertEqual(summary["weighted_best_instruction_percent"], 24.0)
+
+    def test_measure_text_and_instruction_count_uses_one_object_compilation(self) -> None:
+        original_run_cmd = evaluate_topk_paths.run_cmd
+        commands: list[str] = []
+
+        class Result:
+            def __init__(self, stdout: str = "") -> None:
+                self.stdout = stdout
+
+        def fake_run_cmd(cmd):
+            commands.append(cmd[0])
+            if cmd[0] == "llc":
+                obj_path = Path(cmd[cmd.index("-o") + 1])
+                obj_path.write_bytes(b"obj")
+                return Result()
+            if cmd[0] == "llvm-size":
+                return Result("text data bss dec hex filename\n123 0 0 123 7b demo.o\n")
+            if cmd[0] == "llvm-objdump":
+                return Result("   0:\t90\n   1:\t90\nlabel:\n")
+            raise AssertionError(f"unexpected command: {cmd}")
+
+        try:
+            evaluate_topk_paths.run_cmd = fake_run_cmd
+            with tempfile.TemporaryDirectory() as tmp_str:
+                workdir = Path(tmp_str)
+                size, count = evaluate_topk_paths.measure_text_and_instruction_count(
+                    Path("demo.bc"),
+                    workdir,
+                )
+                object_files = list(workdir.glob("*.o"))
+        finally:
+            evaluate_topk_paths.run_cmd = original_run_cmd
+
+        self.assertEqual(size, 123)
+        self.assertEqual(count, 2)
+        self.assertEqual(commands.count("llc"), 1)
+        self.assertEqual(commands, ["llc", "llvm-size", "llvm-objdump"])
+        self.assertEqual(object_files, [])
 
     def test_measure_machine_instruction_count_removes_temporary_object(self) -> None:
         original_run_cmd = evaluate_topk_paths.run_cmd
