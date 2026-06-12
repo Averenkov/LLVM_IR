@@ -64,6 +64,13 @@ class SuperPathCandidate:
     edge_score: int
 
 
+@dataclass(frozen=True)
+class SuperPathBuildResult:
+    candidates: list[SuperPathCandidate]
+    truncated: bool
+    generated_count: int
+
+
 def measure_machine_instruction_count(bitcode_path: Path, workdir: Path) -> int:
     obj_path = workdir / f"{bitcode_path.stem}.instr.o"
     try:
@@ -108,7 +115,7 @@ def generate_topk_paths(
             paths_per_start=args.paths_per_start,
         )
     if heuristic == "cycle_breaking_superpath_topk":
-        return _generate_superpath_segments(graph, args)
+        raise ValueError("use evaluate_superpath_for_benchmark for superpath heuristic")
     if heuristic in {"random_walk_top10", "random_walk_topk"}:
         return random_walk_top_paths(
             graph,
@@ -144,9 +151,9 @@ def _generate_superpath_segments(
     graph: PassOrderGraph,
     args: argparse.Namespace,
 ) -> list[list[str]]:
-    segment_min_length = max(1, int(getattr(args, "segment_min_length", 4)))
+    segment_min_length = int(getattr(args, "segment_min_length", 4))
     segment_max_length = max(segment_min_length, int(getattr(args, "segment_max_length", 6)))
-    segment_top_k = max(1, int(getattr(args, "segment_top_k", 250)))
+    segment_top_k = max(1, int(getattr(args, "segment_top_k", 100)))
     raw_paths = cycle_breaking_top_start_paths(
         graph,
         config=CycleBreakingMaxPathConfig(
@@ -186,10 +193,35 @@ def _build_superpath_candidates(
     top_k: int,
     max_pass_length: int,
     min_edge_weight: int,
+    beam_factor: int = 5,
+    max_candidates: int = 100_000,
 ) -> list[SuperPathCandidate]:
+    return _build_superpath_candidates_with_stats(
+        graph,
+        segments,
+        top_k=top_k,
+        max_pass_length=max_pass_length,
+        min_edge_weight=min_edge_weight,
+        beam_factor=beam_factor,
+        max_candidates=max_candidates,
+    ).candidates
+
+
+def _build_superpath_candidates_with_stats(
+    graph: PassOrderGraph,
+    segments: list[SuperSegmentCandidate],
+    *,
+    top_k: int,
+    max_pass_length: int,
+    min_edge_weight: int,
+    beam_factor: int,
+    max_candidates: int,
+) -> SuperPathBuildResult:
     if not segments:
-        return []
+        return SuperPathBuildResult(candidates=[], truncated=False, generated_count=0)
     top_k = max(1, top_k)
+    beam_width = max(1, beam_factor) * top_k
+    max_candidates = max(1, max_candidates)
     if max_pass_length <= 0:
         max_pass_length = max(len(segment.passes) for segment in segments)
     min_segment_length = max(1, min(len(segment.passes) for segment in segments))
@@ -208,55 +240,76 @@ def _build_superpath_candidates(
         outgoing[left.index].sort(key=lambda item: (-item[1], item[0]))
 
     candidates: list[SuperPathCandidate] = []
+    truncated = False
 
-    def add_candidate(candidate: SuperPathCandidate) -> None:
+    def add_candidate(candidate: SuperPathCandidate) -> bool:
+        nonlocal truncated
+        if len(candidates) >= max_candidates:
+            truncated = True
+            return False
         candidates.append(candidate)
+        if len(candidates) >= max_candidates:
+            truncated = True
+        return True
 
-    stack: list[SuperPathCandidate] = []
+    layer: list[SuperPathCandidate] = []
     for segment in segments:
         if len(segment.passes) > max_pass_length:
             continue
-        candidate = SuperPathCandidate(
-            segment_indexes=(segment.index,),
-            passes=segment.passes,
-            score=segment.vertex_delta,
-            vertex_delta=segment.vertex_delta,
-            edge_score=0,
-        )
-        add_candidate(candidate)
-        stack.append(candidate)
-
-    while stack:
-        current = stack.pop()
-        if len(current.segment_indexes) >= max_super_segments:
-            continue
-        used = set(current.segment_indexes)
-        last_index = current.segment_indexes[-1]
-        for next_index, edge_weight in outgoing.get(last_index, []):
-            if next_index in used:
-                continue
-            next_segment = by_index[next_index]
-            next_passes = current.passes + next_segment.passes
-            if len(next_passes) > max_pass_length:
-                continue
-            candidate = SuperPathCandidate(
-                segment_indexes=current.segment_indexes + (next_index,),
-                passes=next_passes,
-                score=current.score + edge_weight + next_segment.vertex_delta,
-                vertex_delta=current.vertex_delta + next_segment.vertex_delta,
-                edge_score=current.edge_score + edge_weight,
+        layer.append(
+            SuperPathCandidate(
+                segment_indexes=(segment.index,),
+                passes=segment.passes,
+                score=segment.vertex_delta,
+                vertex_delta=segment.vertex_delta,
+                edge_score=0,
             )
-            add_candidate(candidate)
-            stack.append(candidate)
+        )
+    layer = sorted(layer, key=_superpath_rank_key, reverse=True)[:beam_width]
+    for candidate in layer:
+        if not add_candidate(candidate):
+            break
+
+    while layer and not truncated:
+        next_layer: list[SuperPathCandidate] = []
+        for current in layer:
+            if len(current.segment_indexes) >= max_super_segments:
+                continue
+            used = set(current.segment_indexes)
+            last_index = current.segment_indexes[-1]
+            for next_index, edge_weight in outgoing.get(last_index, []):
+                if next_index in used:
+                    continue
+                next_segment = by_index[next_index]
+                next_passes = current.passes + next_segment.passes
+                if len(next_passes) > max_pass_length:
+                    continue
+                next_layer.append(
+                    SuperPathCandidate(
+                        segment_indexes=current.segment_indexes + (next_index,),
+                        passes=next_passes,
+                        score=current.score + edge_weight + next_segment.vertex_delta,
+                        vertex_delta=current.vertex_delta + next_segment.vertex_delta,
+                        edge_score=current.edge_score + edge_weight,
+                    )
+                )
+        if not next_layer:
+            break
+        layer = sorted(next_layer, key=_superpath_rank_key, reverse=True)[:beam_width]
+        for candidate in layer:
+            if not add_candidate(candidate):
+                break
 
     unique: dict[tuple[str, ...], SuperPathCandidate] = {}
     for candidate in candidates:
         current = unique.get(candidate.passes)
         if current is None or _superpath_rank_key(candidate) > _superpath_rank_key(current):
             unique[candidate.passes] = candidate
-    return sorted(unique.values(), key=_superpath_rank_key, reverse=True)[:top_k]
-
-
+    return SuperPathBuildResult(
+        candidates=sorted(unique.values(), key=_superpath_rank_key, reverse=True)[:top_k],
+        truncated=truncated,
+        generated_count=len(candidates),
+    )
 
 def evaluate_candidate_with_prefix_cache(
     passes: list[str],
@@ -551,6 +604,7 @@ def evaluate_superpath_for_benchmark(
         segment_paths = _generate_superpath_segments(graph, args)
         segment_candidates: list[SuperSegmentCandidate] = []
         segment_failures = 0
+        segments_filtered_nonpositive = 0
         for segment_index, segment_path in enumerate(segment_paths, start=1):
             result = evaluate_candidate_with_prefix_cache(
                 segment_path,
@@ -561,22 +615,29 @@ def evaluate_superpath_for_benchmark(
             if result["error"]:
                 segment_failures += 1
                 continue
+            vertex_delta = baseline_size - int(result["final_size"])
+            if vertex_delta < args.superpath_min_segment_delta:
+                segments_filtered_nonpositive += 1
+                continue
             segment_candidates.append(
                 SuperSegmentCandidate(
                     index=segment_index,
                     passes=tuple(segment_path),
-                    vertex_delta=baseline_size - int(result["final_size"]),
+                    vertex_delta=vertex_delta,
                     graph_score=score_path(graph, segment_path).net_score,
                 )
             )
 
-        superpath_candidates = _build_superpath_candidates(
+        superpath_result = _build_superpath_candidates_with_stats(
             graph,
             segment_candidates,
             top_k=args.top_k,
             max_pass_length=args.max_length,
             min_edge_weight=args.min_edge_weight,
+            beam_factor=args.superpath_beam_factor,
+            max_candidates=args.superpath_max_candidates,
         )
+        superpath_candidates = superpath_result.candidates
 
         candidate_rows = []
         best_row: dict[str, Any] | None = None
@@ -608,6 +669,8 @@ def evaluate_superpath_for_benchmark(
                     "segment_candidate_count": len(segment_paths),
                     "segment_valid_count": len(segment_candidates),
                     "segment_failures": segment_failures,
+                    "segments_filtered_nonpositive": segments_filtered_nonpositive,
+                    "superpath_truncated": superpath_result.truncated,
                 },
             )
             candidate_rows.append(row)
@@ -653,6 +716,8 @@ def evaluate_superpath_for_benchmark(
                 "segment_candidate_count": len(segment_paths),
                 "segment_valid_count": len(segment_candidates),
                 "segment_failures": segment_failures,
+                "segments_filtered_nonpositive": segments_filtered_nonpositive,
+                "superpath_truncated": superpath_result.truncated,
             }
         prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
         best_row["prefix_failures"] = prefix_failures
@@ -742,9 +807,12 @@ def make_report_payload(
             "random_walks": args.random_walks,
             "random_seed": args.random_seed,
             "exhaustive_length": args.exhaustive_length,
-            "segment_top_k": getattr(args, "segment_top_k", 250),
+            "segment_top_k": getattr(args, "segment_top_k", 100),
             "segment_min_length": getattr(args, "segment_min_length", 4),
             "segment_max_length": getattr(args, "segment_max_length", 6),
+            "superpath_beam_factor": getattr(args, "superpath_beam_factor", 5),
+            "superpath_max_candidates": getattr(args, "superpath_max_candidates", 100_000),
+            "superpath_min_segment_delta": getattr(args, "superpath_min_segment_delta", 1),
             "measure_instructions": args.measure_instructions,
         },
         "summary": summary,
@@ -869,9 +937,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--random-walks", type=int, default=2048)
     parser.add_argument("--random-seed", type=int, default=7)
     parser.add_argument("--exhaustive-length", type=int, default=6)
-    parser.add_argument("--segment-top-k", type=int, default=250)
+    parser.add_argument("--segment-top-k", type=int, default=100)
     parser.add_argument("--segment-min-length", type=int, default=4)
     parser.add_argument("--segment-max-length", type=int, default=6)
+    parser.add_argument("--superpath-beam-factor", type=int, default=5)
+    parser.add_argument("--superpath-max-candidates", type=int, default=100_000)
+    parser.add_argument("--superpath-min-segment-delta", type=int, default=1)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
         "--measure-instructions",
@@ -893,11 +964,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
-    require_tools("opt", "llc", "llvm-size")
-    if args.measure_instructions:
-        require_tools("llvm-objdump")
+def validate_args(args: argparse.Namespace) -> None:
     if args.top_k <= 0:
         raise ValueError("--top-k must be positive")
     if args.top_starts <= 0:
@@ -906,10 +973,22 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("--paths-per-start must be positive")
     if args.segment_top_k <= 0:
         raise ValueError("--segment-top-k must be positive")
-    if args.segment_min_length <= 0:
-        raise ValueError("--segment-min-length must be positive")
+    if args.segment_min_length < 2:
+        raise ValueError("--segment-min-length must be >= 2")
     if args.segment_max_length < args.segment_min_length:
         raise ValueError("--segment-max-length must be >= --segment-min-length")
+    if args.superpath_beam_factor <= 0:
+        raise ValueError("--superpath-beam-factor must be positive")
+    if args.superpath_max_candidates <= 0:
+        raise ValueError("--superpath-max-candidates must be positive")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    require_tools("opt", "llc", "llvm-size")
+    if args.measure_instructions:
+        require_tools("llvm-objdump")
+    validate_args(args)
     if args.overwrite_bitcode and args.bitcode_dir.exists():
         shutil.rmtree(args.bitcode_dir)
     graphs = load_graphs_from_report(args.graph)

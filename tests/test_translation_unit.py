@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import tempfile
+import time
 from pathlib import Path
 
 from llvm_ir.stages.translation_unit.contracts import FunctionPassResult, TranslationUnitPlan
@@ -874,6 +875,90 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(candidates[0].vertex_delta, 15)
         self.assertEqual(candidates[0].edge_score, 20)
         self.assertEqual(candidates[1].passes, ("x", "y", "z", "q"))
+
+    def test_superpath_candidate_generation_is_bounded_for_dense_segments(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        segments = []
+        for index in range(250):
+            passes = tuple(f"p{index}_{offset}" for offset in range(4))
+            segments.append(
+                evaluate_topk_paths.SuperSegmentCandidate(
+                    index=index,
+                    passes=passes,
+                    vertex_delta=250 - index,
+                    graph_score=0,
+                )
+            )
+        for left in segments:
+            for right in segments:
+                if left.index != right.index:
+                    graph.edge_counts[(left.passes[-1], right.passes[0])] = 1
+
+        started = time.monotonic()
+        candidates = evaluate_topk_paths._build_superpath_candidates(
+            graph,
+            segments,
+            top_k=10,
+            max_pass_length=12,
+            min_edge_weight=1,
+            beam_factor=5,
+            max_candidates=100_000,
+        )
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 5.0)
+        self.assertLessEqual(len(candidates), 10)
+
+    def test_superpath_candidate_generation_reports_truncation(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        segments = []
+        for index in range(20):
+            passes = (f"s{index}", f"e{index}")
+            segments.append(
+                evaluate_topk_paths.SuperSegmentCandidate(
+                    index=index,
+                    passes=passes,
+                    vertex_delta=20 - index,
+                    graph_score=0,
+                )
+            )
+        for left in segments:
+            for right in segments:
+                if left.index != right.index:
+                    graph.edge_counts[(left.passes[-1], right.passes[0])] = 1
+
+        result = evaluate_topk_paths._build_superpath_candidates_with_stats(
+            graph,
+            segments,
+            top_k=10,
+            max_pass_length=8,
+            min_edge_weight=1,
+            beam_factor=5,
+            max_candidates=30,
+        )
+
+        self.assertTrue(result.truncated)
+        self.assertLessEqual(result.generated_count, 30)
+        self.assertLessEqual(len(result.candidates), 10)
+
+    def test_validate_args_rejects_segment_min_length_one(self) -> None:
+        args = evaluate_topk_paths.parse_args(
+            [
+                "--graph",
+                "graph.json",
+                "--bitcode-dir",
+                "bitcode",
+                "--output",
+                "out.json",
+                "--heuristic",
+                "cycle_breaking_superpath_topk",
+                "--segment-min-length",
+                "1",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "segment-min-length"):
+            evaluate_topk_paths.validate_args(args)
 
     def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
