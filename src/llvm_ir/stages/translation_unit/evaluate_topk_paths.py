@@ -630,6 +630,7 @@ def evaluate_superpath_for_benchmark(
             prefix_cache[()]["instruction_count"] = baseline_instruction_count
 
         segment_paths = _generate_superpath_segments(graph, args)
+        segment_eval_start_count = len(prefix_cache)
         segment_candidates: list[SuperSegmentCandidate] = []
         segment_failures = 0
         segments_filtered_nonpositive = 0
@@ -656,10 +657,13 @@ def evaluate_superpath_for_benchmark(
                 )
             )
 
+        segment_eval_end_count = len(prefix_cache)
+        segment_eval_cost = segment_eval_end_count - segment_eval_start_count
+        superpath_eval_top_k = args.superpath_eval_top_k or args.top_k
         superpath_result = _build_superpath_candidates_with_stats(
             graph,
             segment_candidates,
-            top_k=args.top_k,
+            top_k=superpath_eval_top_k,
             max_pass_length=args.max_length,
             min_edge_weight=args.min_edge_weight,
             beam_factor=args.superpath_beam_factor,
@@ -670,6 +674,7 @@ def evaluate_superpath_for_benchmark(
 
         candidate_rows = []
         best_row: dict[str, Any] | None = None
+        superpath_eval_start_count = len(prefix_cache)
         for candidate_index, candidate in enumerate(superpath_candidates, start=1):
             passes = list(candidate.passes)
             result = evaluate_candidate_with_prefix_cache(
@@ -699,12 +704,19 @@ def evaluate_superpath_for_benchmark(
                     "segment_valid_count": len(segment_candidates),
                     "segment_failures": segment_failures,
                     "segments_filtered_nonpositive": segments_filtered_nonpositive,
+                    "segments_recovered_from_tail": 0,
                     "superpath_truncated": superpath_result.truncated,
+                    "segment_eval_cost": segment_eval_cost,
+                    "superpath_eval_cost": 0,
                 },
             )
             candidate_rows.append(row)
             if best_row is None or _selected_key(row) > _selected_key(best_row):
                 best_row = row
+
+        superpath_eval_cost = len(prefix_cache) - superpath_eval_start_count
+        for row in candidate_rows:
+            row["superpath_eval_cost"] = superpath_eval_cost
 
         if best_row is None:
             best_row = {
@@ -750,6 +762,7 @@ def evaluate_superpath_for_benchmark(
             }
         prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
         best_row["prefix_failures"] = prefix_failures
+        best_row["superpath_eval_cost"] = superpath_eval_cost
         return dict(best_row), candidate_rows, len(prefix_cache)
 
 
@@ -844,6 +857,7 @@ def make_report_payload(
             "superpath_min_segment_delta": getattr(args, "superpath_min_segment_delta", 1),
             "superpath_max_overlap": getattr(args, "superpath_max_overlap", 1),
             "segment_max_jaccard": getattr(args, "segment_max_jaccard", 0.75),
+            "superpath_eval_top_k": getattr(args, "superpath_eval_top_k", 0),
             "measure_instructions": args.measure_instructions,
         },
         "summary": summary,
@@ -976,6 +990,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--superpath-min-segment-delta", type=int, default=1)
     parser.add_argument("--superpath-max-overlap", type=int, default=1)
     parser.add_argument("--segment-max-jaccard", type=float, default=0.75)
+    parser.add_argument("--superpath-eval-top-k", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
         "--measure-instructions",
@@ -1018,6 +1033,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--superpath-max-overlap must be non-negative")
     if not 0.0 <= args.segment_max_jaccard <= 1.0:
         raise ValueError("--segment-max-jaccard must be between 0 and 1")
+    if args.superpath_eval_top_k < 0:
+        raise ValueError("--superpath-eval-top-k must be non-negative")
 
 
 def main(argv: list[str] | None = None) -> int:
