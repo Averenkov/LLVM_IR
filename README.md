@@ -626,15 +626,26 @@ cache-ом, и оценка склейки часто добавляет тол�
 частых смежных подпоследовательностей pass-ов, найденных в per-function
 результатах search-а. Для каждого benchmark-а evaluator майнит n-граммы,
 замыкает их влево/вправо, добавляет несколько macro-чанков из лучших целых
-function-level последовательностей и одиночные pass-ы как fallback для маленьких
-benchmark-ов. Затем строится граф чанков: стартовые веса показывают, какие чанки
-часто стоят в начале хороших function-level решений, а рёбра показывают, какие
-чанки встречаются близко друг за другом. Из этого графа сэмплируется большой пул
-candidate path-ов, после чего жадный prefix-forest selection выбирает пути с
-учётом ценности чанков, разнообразия и числа новых prefix-cache узлов. По
-умолчанию используется две волны: первая волна измеряется на whole TU, затем
-ценность чанков пересчитывается по реальным TU-маргиналам в байтах, а вторая
-волна выбирается уже по этой откалиброванной шкале.
+function-level последовательностей, raw n-граммы из отдельных корзин длины и
+одиночные pass-ы. Затем строится граф чанков: стартовые веса показывают, какие
+чанки часто стоят в начале хороших function-level решений, а рёбра показывают,
+какие чанки встречаются близко друг за другом или могут быть склеены через
+наложение/границу order graph. Из этого графа сэмплируется большой пул candidate
+path-ов с телепортами и рестартами из тупиков, после чего жадный prefix-forest
+selection выбирает пути с учётом ценности чанков, разнообразия и числа новых
+prefix-cache узлов. По умолчанию используется две волны: первая волна измеряется
+на whole TU, затем ценность чанков пересчитывается по реальным TU-маргиналам в
+байтах, а вторая волна выбирается уже по этой откалиброванной шкале.
+
+Первая версия Chunk-Forest выродилась: full-запуск дал средний пул всего около
+`20` уникальных путей на benchmark, поэтому первая волна забирала почти весь пул,
+а вторая волна не имела пространства для коррекции. V2 лечит это четырьмя
+изменениями: одиночные pass-ы добавляются всегда (`--singles`), raw n-граммы
+добирают локальные хвосты после замыкания (`--ngrams-per-bucket`), chunk graph
+получает overlap-splice и normalized glue-рёбра (`--splice-epsilon`), а random
+walk использует телепорты и рестарты (`--teleport`, `--start-floor`). На
+регрессионном reproducer-е v1 давал `41` уникальный путь из `100000` блужданий,
+а v2 даёт больше `5000` и сохраняет детерминизм по seed.
 
 Основные параметры evaluator-а:
 
@@ -652,8 +663,14 @@ PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate_chunk_forest 
   --closure-theta 0.8 \
   --min-support 2 \
   --top-chunks 30 \
+  --singles 12 \
+  --ngrams-per-bucket 5 \
   --macro-top 3 \
   --max-length 12 \
+  --splice-epsilon 0.05 \
+  --teleport 0.15 \
+  --start-floor 0.1 \
+  --walk-stall 20000 \
   --lambda-cache 0.0 \
   --gamma-diversity 0.5 \
   --max-real-evals-per-benchmark 0
@@ -665,8 +682,9 @@ cache miss был соизмерим с одним pass-ом ценности. �
 TU-байты не складываются напрямую с function-level весами: немеренные чанки
 получают `mined_weight * scale`, где `scale` вычисляется только по чанкам,
 которые уже получили TU-маргиналы. В отчёте для каждой выбранной строки есть
-`chunks_mined`, `chunks_macro`, `chunks_single`, `pool_unique_paths`,
-`wave1_real_evals`, `wave2_real_evals`, `chunks_remeasured`, `rescoring_scale`,
+`chunks_mined`, `chunks_macro`, `chunks_single`, `inventory_size`,
+`pool_unique_paths`, `walks_executed`, `wave1_real_evals`, `wave2_real_evals`,
+`wave2_pool_available`, `wave2_skipped`, `chunks_remeasured`, `rescoring_scale`,
 `top_chunks` и общий `real_evals`.
 
 Для nightly-прогона Chunk-Forest включается отдельно:
@@ -676,6 +694,12 @@ RUN_CHUNK_FOREST=1 \
 CF_PATHS=500 \
 CF_WAVES=2 \
 CF_POOL=100000 \
+CF_SINGLES=12 \
+CF_NGRAMS_PER_BUCKET=5 \
+CF_SPLICE_EPSILON=0.05 \
+CF_TELEPORT=0.15 \
+CF_START_FLOOR=0.1 \
+CF_WALK_STALL=20000 \
 CF_MAX_EVALS=0 \
 RUN_CEM=0 RUN_RANDOM=1 \
 scripts/nightly_big_pass_search_and_heuristics.sh
