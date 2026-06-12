@@ -846,19 +846,16 @@ class TranslationUnitContractTests(unittest.TestCase):
                 index=1,
                 passes=("a", "b", "c", "d"),
                 vertex_delta=10,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=2,
                 passes=("e", "f", "g", "h"),
                 vertex_delta=5,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=3,
                 passes=("x", "y", "z", "q"),
                 vertex_delta=12,
-                graph_score=0,
             ),
         ]
 
@@ -885,25 +882,21 @@ class TranslationUnitContractTests(unittest.TestCase):
                 index=1,
                 passes=("a", "b"),
                 vertex_delta=1,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=2,
                 passes=("c", "d"),
                 vertex_delta=1,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=3,
                 passes=("x", "y"),
                 vertex_delta=10,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=4,
                 passes=("z", "q"),
                 vertex_delta=10,
-                graph_score=0,
             ),
         ]
 
@@ -932,13 +925,11 @@ class TranslationUnitContractTests(unittest.TestCase):
                 index=1,
                 passes=("a", "b", "c"),
                 vertex_delta=10,
-                graph_score=0,
             ),
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=2,
                 passes=("b", "c", "d"),
                 vertex_delta=9,
-                graph_score=0,
             ),
         ]
 
@@ -1003,7 +994,6 @@ class TranslationUnitContractTests(unittest.TestCase):
                     index=index,
                     passes=passes,
                     vertex_delta=250 - index,
-                    graph_score=0,
                 )
             )
         for left in segments:
@@ -1036,7 +1026,6 @@ class TranslationUnitContractTests(unittest.TestCase):
                     index=index,
                     passes=passes,
                     vertex_delta=20 - index,
-                    graph_score=0,
                 )
             )
         for left in segments:
@@ -1133,6 +1122,66 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(selected["superpath_eval_cost"], 2)
         self.assertEqual(selected["segment_eval_cost"] + selected["superpath_eval_cost"] + 1, cache_count)
         self.assertEqual(candidates[0]["passes"], ["a", "b", "c", "d"])
+
+    def test_evaluate_superpath_recovers_tail_failed_segment_prefix(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "bad"])
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 95
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            if passes[0] == "bad":
+                raise RuntimeError("boom")
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - 5
+
+        args = type(
+            "Args",
+            (),
+            {
+                "heuristic": "cycle_breaking_superpath_topk",
+                "top_k": 1,
+                "superpath_eval_top_k": 1,
+                "max_length": 4,
+                "min_edge_weight": 1,
+                "segment_min_length": 2,
+                "superpath_beam_factor": 5,
+                "superpath_max_candidates": 100,
+                "superpath_min_segment_delta": 1,
+                "superpath_max_overlap": 1,
+            },
+        )
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        original_segments = evaluate_topk_paths._generate_superpath_segments
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            evaluate_topk_paths._generate_superpath_segments = (
+                lambda *_args, **_kwargs: [["a", "b", "bad"]]
+            )
+            selected, candidates, _ = evaluate_topk_paths.evaluate_superpath_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                args=args,
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+            evaluate_topk_paths._generate_superpath_segments = original_segments
+
+        self.assertEqual(selected["segment_failures"], 1)
+        self.assertEqual(selected["segments_recovered_from_tail"], 1)
+        self.assertEqual(selected["segment_valid_count"], 1)
+        self.assertEqual(candidates[0]["passes"], ["a", "b"])
+        self.assertEqual(candidates[0]["best_delta"], 10)
 
     def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
         graph = PassOrderGraph(benchmark="demo")

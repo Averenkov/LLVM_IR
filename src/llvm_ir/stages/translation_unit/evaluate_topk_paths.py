@@ -53,7 +53,6 @@ class SuperSegmentCandidate:
     index: int
     passes: tuple[str, ...]
     vertex_delta: int
-    graph_score: int
 
 
 @dataclass(frozen=True)
@@ -634,6 +633,7 @@ def evaluate_superpath_for_benchmark(
         segment_candidates: list[SuperSegmentCandidate] = []
         segment_failures = 0
         segments_filtered_nonpositive = 0
+        segments_recovered_from_tail = 0
         for segment_index, segment_path in enumerate(segment_paths, start=1):
             result = evaluate_candidate_with_prefix_cache(
                 segment_path,
@@ -641,19 +641,27 @@ def evaluate_superpath_for_benchmark(
                 prefix_cache,
                 measure_instructions=measure_instructions,
             )
+            candidate_passes = list(segment_path)
+            candidate_size = int(result["final_size"])
             if result["error"]:
                 segment_failures += 1
-                continue
-            vertex_delta = baseline_size - int(result["final_size"])
+                if result.get("error_kind") != "tail_failure":
+                    continue
+                recovered_passes = list(result.get("best_passes") or [])
+                if len(recovered_passes) < args.segment_min_length:
+                    continue
+                candidate_passes = recovered_passes
+                candidate_size = int(result["best_size"])
+                segments_recovered_from_tail += 1
+            vertex_delta = baseline_size - candidate_size
             if vertex_delta < args.superpath_min_segment_delta:
                 segments_filtered_nonpositive += 1
                 continue
             segment_candidates.append(
                 SuperSegmentCandidate(
                     index=segment_index,
-                    passes=tuple(segment_path),
+                    passes=tuple(candidate_passes),
                     vertex_delta=vertex_delta,
-                    graph_score=score_path(graph, segment_path).net_score,
                 )
             )
 
@@ -704,7 +712,7 @@ def evaluate_superpath_for_benchmark(
                     "segment_valid_count": len(segment_candidates),
                     "segment_failures": segment_failures,
                     "segments_filtered_nonpositive": segments_filtered_nonpositive,
-                    "segments_recovered_from_tail": 0,
+                    "segments_recovered_from_tail": segments_recovered_from_tail,
                     "superpath_truncated": superpath_result.truncated,
                     "segment_eval_cost": segment_eval_cost,
                     "superpath_eval_cost": 0,
