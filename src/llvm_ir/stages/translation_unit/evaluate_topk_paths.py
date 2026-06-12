@@ -288,7 +288,7 @@ def _build_superpath_candidates_with_stats(
                     SuperPathCandidate(
                         segment_indexes=current.segment_indexes + (next_index,),
                         passes=next_passes,
-                        score=current.score + edge_weight + next_segment.vertex_delta,
+                        score=current.score + next_segment.vertex_delta,
                         vertex_delta=current.vertex_delta + next_segment.vertex_delta,
                         edge_score=current.edge_score + edge_weight,
                     )

@@ -857,7 +857,7 @@ class TranslationUnitContractTests(unittest.TestCase):
             evaluate_topk_paths.SuperSegmentCandidate(
                 index=3,
                 passes=("x", "y", "z", "q"),
-                vertex_delta=30,
+                vertex_delta=12,
                 graph_score=0,
             ),
         ]
@@ -871,10 +871,58 @@ class TranslationUnitContractTests(unittest.TestCase):
         )
 
         self.assertEqual(candidates[0].passes, ("a", "b", "c", "d", "e", "f", "g", "h"))
-        self.assertEqual(candidates[0].score, 35)
+        self.assertEqual(candidates[0].score, 15)
         self.assertEqual(candidates[0].vertex_delta, 15)
         self.assertEqual(candidates[0].edge_score, 20)
         self.assertEqual(candidates[1].passes, ("x", "y", "z", "q"))
+
+    def test_superpath_score_uses_edge_weight_only_as_tiebreaker(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.edge_counts[("b", "c")] = 10_000
+        graph.edge_counts[("y", "z")] = 1
+        segments = [
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=1,
+                passes=("a", "b"),
+                vertex_delta=1,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=2,
+                passes=("c", "d"),
+                vertex_delta=1,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=3,
+                passes=("x", "y"),
+                vertex_delta=10,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=4,
+                passes=("z", "q"),
+                vertex_delta=10,
+                graph_score=0,
+            ),
+        ]
+
+        candidates = evaluate_topk_paths._build_superpath_candidates(
+            graph,
+            segments,
+            top_k=4,
+            max_pass_length=4,
+            min_edge_weight=1,
+        )
+
+        self.assertEqual(candidates[0].passes, ("x", "y", "z", "q"))
+        self.assertEqual(candidates[0].score, 20)
+        self.assertEqual(candidates[0].edge_score, 1)
+        by_passes = {candidate.passes: candidate for candidate in candidates}
+        weak_glue = by_passes[("a", "b", "c", "d")]
+        self.assertEqual(weak_glue.score, 2)
+        self.assertEqual(weak_glue.edge_score, 10_000)
+        self.assertNotEqual(candidates[0].passes, weak_glue.passes)
 
     def test_superpath_candidate_generation_is_bounded_for_dense_segments(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
