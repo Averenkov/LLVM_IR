@@ -36,6 +36,12 @@ RUN_AGGREGATION_TU_EVAL="${RUN_AGGREGATION_TU_EVAL:-1}"
 AGG_TOP_K="${AGG_TOP_K:-4}"
 AGG_INCLUDE_TOPK="${AGG_INCLUDE_TOPK:-0}"
 SUPERPATH_EVAL_TOP_K="${SUPERPATH_EVAL_TOP_K:-300}"
+RUN_CHUNK_FOREST="${RUN_CHUNK_FOREST:-0}"
+CF_PATHS="${CF_PATHS:-500}"
+CF_POOL="${CF_POOL:-100000}"
+CF_WAVES="${CF_WAVES:-2}"
+CF_MAX_EVALS="${CF_MAX_EVALS:-0}"
+CF_MEASURE_INSTRUCTIONS="${CF_MEASURE_INSTRUCTIONS:-0}"
 
 export PYTHONPATH="$ROOT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
 export COMPILER_GYM_CACHE="${COMPILER_GYM_CACHE:-$ROOT_DIR/.cache/compiler_gym/cache}"
@@ -87,6 +93,12 @@ RUN_AGGREGATION_TU_EVAL=$RUN_AGGREGATION_TU_EVAL
 AGG_TOP_K=$AGG_TOP_K
 AGG_INCLUDE_TOPK=$AGG_INCLUDE_TOPK
 SUPERPATH_EVAL_TOP_K=$SUPERPATH_EVAL_TOP_K
+RUN_CHUNK_FOREST=$RUN_CHUNK_FOREST
+CF_PATHS=$CF_PATHS
+CF_POOL=$CF_POOL
+CF_WAVES=$CF_WAVES
+CF_MAX_EVALS=$CF_MAX_EVALS
+CF_MEASURE_INSTRUCTIONS=$CF_MEASURE_INSTRUCTIONS
 PYTHONPATH=$PYTHONPATH
 EOF
 }
@@ -101,6 +113,7 @@ run_algorithm() {
   local aggregation_dir="$algorithm_dir/aggregation_graph_only"
   local aggregation_paths_dir="$algorithm_dir/aggregation_heuristics"
   local aggregation_eval_dir="$algorithm_dir/aggregation_tu_eval"
+  local chunk_forest_dir="$algorithm_dir/translation_unit_chunk_forest"
 
   mkdir -p \
     "$pass_dir" \
@@ -109,7 +122,8 @@ run_algorithm() {
     "$eval_dir" \
     "$aggregation_dir" \
     "$aggregation_paths_dir" \
-    "$aggregation_eval_dir"
+    "$aggregation_eval_dir" \
+    "$chunk_forest_dir"
 
   local search_steps="$STEPS"
   local search_iterations="$ITERATIONS"
@@ -177,6 +191,30 @@ run_algorithm() {
     log "=== $algorithm: skip whole TU evaluation (RUN_TU_EVAL=$RUN_TU_EVAL) ==="
   fi
 
+
+  if [[ "$RUN_CHUNK_FOREST" == "1" ]]; then
+    log "=== $algorithm: Chunk-Forest TU evaluation ==="
+    local cf_instruction_args=()
+    if [[ "$CF_MEASURE_INSTRUCTIONS" == "1" ]]; then
+      cf_instruction_args+=(--measure-instructions)
+    fi
+    run_cmd python3 -m llvm_ir.stages.translation_unit.evaluate_chunk_forest \
+      --comparison "$pass_dir/comparison.json" \
+      --algorithm "$algorithm" \
+      "${site_data_args[@]}" \
+      --bitcode-dir "$BITCODE_DIR" \
+      --output "$chunk_forest_dir/tu_eval_chunk_forest.json" \
+      --paths "$CF_PATHS" \
+      --waves "$CF_WAVES" \
+      --pool-size "$CF_POOL" \
+      --walk-seed "$SEED" \
+      --max-length "$MAX_LENGTH" \
+      --max-real-evals-per-benchmark "$CF_MAX_EVALS" \
+      "${cf_instruction_args[@]}"
+  else
+    log "=== $algorithm: skip Chunk-Forest TU evaluation (RUN_CHUNK_FOREST=$RUN_CHUNK_FOREST) ==="
+  fi
+
   if [[ "$RUN_AGGREGATION_GRAPH_ONLY" == "1" ]]; then
     log "=== $algorithm: new aggregation package graph-only comparison ==="
     run_cmd python3 -m llvm_ir.scripts.run_aggregation \
@@ -240,6 +278,7 @@ for algorithm in algorithms:
     aggregation_report = root / "aggregation_graph_only" / "metrics.json"
     aggregation_paths_report = root / "aggregation_heuristics" / "all_aggregation_heuristics.json"
     aggregation_eval_report = root / "aggregation_tu_eval" / "tu_eval_all_aggregation_heuristics.json"
+    chunk_forest_report = root / "translation_unit_chunk_forest" / "tu_eval_chunk_forest.json"
     if pass_report.exists():
         payload = json.loads(pass_report.read_text())
         data["pass_search_summary"] = payload.get("summary", {})
@@ -259,6 +298,9 @@ for algorithm in algorithms:
     if aggregation_eval_report.exists():
         payload = json.loads(aggregation_eval_report.read_text())
         data["aggregation_tu_eval_summary"] = payload.get("summary", {})
+    if chunk_forest_report.exists():
+        payload = json.loads(chunk_forest_report.read_text())
+        data["chunk_forest_summary"] = payload.get("summary", {})
     summary["algorithms"][algorithm] = data
 
 out = run_dir / "summary.json"

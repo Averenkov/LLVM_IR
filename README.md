@@ -619,6 +619,74 @@ cache miss на фазе оценки склеек. Параметр `--superpat
 использовать `--top-k`. Это полезно, потому что сегменты уже оплачены prefix
 cache-ом, и оценка склейки часто добавляет только хвостовые pass-ы.
 
+
+#### `chunk_forest`
+
+`chunk_forest` строит кандидаты не из отдельных рёбер order graph, а из чанков -
+частых смежных подпоследовательностей pass-ов, найденных в per-function
+результатах search-а. Для каждого benchmark-а evaluator майнит n-граммы,
+замыкает их влево/вправо, добавляет несколько macro-чанков из лучших целых
+function-level последовательностей и одиночные pass-ы как fallback для маленьких
+benchmark-ов. Затем строится граф чанков: стартовые веса показывают, какие чанки
+часто стоят в начале хороших function-level решений, а рёбра показывают, какие
+чанки встречаются близко друг за другом. Из этого графа сэмплируется большой пул
+candidate path-ов, после чего жадный prefix-forest selection выбирает пути с
+учётом ценности чанков, разнообразия и числа новых prefix-cache узлов. По
+умолчанию используется две волны: первая волна измеряется на whole TU, затем
+ценность чанков пересчитывается по реальным TU-маргиналам в байтах, а вторая
+волна выбирается уже по этой откалиброванной шкале.
+
+Основные параметры evaluator-а:
+
+```bash
+PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate_chunk_forest \
+  --comparison runs/<run>/random/pass_search/comparison.json \
+  --algorithm random \
+  --bitcode-dir experiments/translation_unit_bitcode/autotune_stratified_30 \
+  --output runs/<run>/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json \
+  --paths 500 \
+  --waves 2 \
+  --pool-size 100000 \
+  --walk-seed 7 \
+  --ngram-max 4 \
+  --closure-theta 0.8 \
+  --min-support 2 \
+  --top-chunks 30 \
+  --macro-top 3 \
+  --max-length 12 \
+  --lambda-cache 0.0 \
+  --gamma-diversity 0.5 \
+  --max-real-evals-per-benchmark 0
+```
+
+`--lambda-cache 0.0` включает автоматическую калибровку штрафа за новый узел
+prefix forest: медиана ценности чанка делится на среднюю длину чанка, чтобы один
+cache miss был соизмерим с одним pass-ом ценности. Во второй волне measured
+TU-байты не складываются напрямую с function-level весами: немеренные чанки
+получают `mined_weight * scale`, где `scale` вычисляется только по чанкам,
+которые уже получили TU-маргиналы. В отчёте для каждой выбранной строки есть
+`chunks_mined`, `chunks_macro`, `chunks_single`, `pool_unique_paths`,
+`wave1_real_evals`, `wave2_real_evals`, `chunks_remeasured`, `rescoring_scale`,
+`top_chunks` и общий `real_evals`.
+
+Для nightly-прогона Chunk-Forest включается отдельно:
+
+```bash
+RUN_CHUNK_FOREST=1 \
+CF_PATHS=500 \
+CF_WAVES=2 \
+CF_POOL=100000 \
+CF_MAX_EVALS=0 \
+RUN_CEM=0 RUN_RANDOM=1 \
+scripts/nightly_big_pass_search_and_heuristics.sh
+```
+
+Предписанная матрица сравнения для диплома: `chunk_forest` на `500` путей в `2`
+волны, `chunk_forest` на `500` путей в `1` волну, `random_walk_top500` и
+`random_walk_top1000`. Сравнивать их нужно не только по числу candidate paths, но
+и по `real_evals`, потому что общий prefix cache делает стоимость путей с общими
+префиксами существенно ниже.
+
 ### Основные TU Результаты
 
 Ниже приведены результаты на `30` benchmark-ах. Основная метрика - weighted best
