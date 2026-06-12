@@ -36,6 +36,18 @@ from llvm_ir.heuristics.translation_unit.random_walk import (
     RandomWalkPathConfig,
     random_walk_path,
 )
+from llvm_ir.heuristics.translation_unit.chunk_forest import (
+    CandidatePath,
+    Chunk,
+    ChunkInventoryConfig,
+    ChunkRef,
+    ChunkSelectionConfig,
+    ChunkWalkConfig,
+    build_chunk_graph,
+    generate_candidate_pool,
+    mine_chunks,
+    select_paths,
+)
 from llvm_ir.stages.translation_unit.dag_longest_path import dag_longest_path
 from llvm_ir.stages.translation_unit.greedy_consensus import greedy_consensus_path
 from llvm_ir.stages.translation_unit.path_heuristics import (
@@ -47,6 +59,7 @@ from llvm_ir.stages.translation_unit.path_heuristics import (
 from llvm_ir.stages.translation_unit.path_scoring import score_path
 from llvm_ir.stages.translation_unit.weighted_toposort import weighted_toposort_path
 from llvm_ir.stages.translation_unit import evaluate_topk_paths
+from llvm_ir.stages.translation_unit import evaluate_chunk_forest
 from llvm_ir.stages.translation_unit.evaluate import (
     TranslationUnitSequence,
     benchmark_uri_from_id,
@@ -1867,6 +1880,247 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(summary["tail_failures"], 1)
         self.assertEqual(summary["full_failures"], 0)
         self.assertEqual(summary["prefix_failures"], 1)
+
+
+    def test_chunk_forest_mining_anchor_closes_core(self) -> None:
+        results = [
+            FunctionPassResult(
+                function="demo-v0_encode.bc",
+                baseline_size=2000,
+                best_size=800,
+                passes=["sroa", "instcombine", "simplifycfg", "gvn", "dse", "adce"],
+            ),
+            FunctionPassResult(
+                function="demo-v0_decode.bc",
+                baseline_size=1800,
+                best_size=1000,
+                passes=["sroa", "instcombine", "simplifycfg", "gvn", "licm", "instcombine"],
+            ),
+            FunctionPassResult(
+                function="demo-v0_init.bc",
+                baseline_size=700,
+                best_size=400,
+                passes=["mem2reg", "instcombine", "simplifycfg", "dse"],
+            ),
+            FunctionPassResult(
+                function="demo-v0_main.bc",
+                baseline_size=100,
+                best_size=100,
+                passes=["instcombine", "simplifycfg"],
+            ),
+        ]
+
+        chunks = mine_chunks(
+            results,
+            config=ChunkInventoryConfig(
+                ngram_max=4,
+                closure_theta=0.8,
+                min_support=2,
+                top_chunks=5,
+                macro_top=0,
+            ),
+        )
+        mined = {chunk.passes: chunk for chunk in chunks if chunk.kind == "mined"}
+        chunk = mined[("sroa", "instcombine", "simplifycfg", "gvn")]
+
+        self.assertEqual(chunk.weight, 2000)
+        self.assertEqual(chunk.support, 2)
+        self.assertNotIn(("instcombine", "simplifycfg"), mined)
+
+    def test_chunk_forest_mining_uses_support_semantics_and_macro_fallback(self) -> None:
+        results = [
+            FunctionPassResult(
+                function="demo-v0_repeat.bc",
+                baseline_size=1000,
+                best_size=900,
+                passes=["a", "b", "a", "b", "c"],
+            ),
+            FunctionPassResult(
+                function="demo-v0_unique.bc",
+                baseline_size=1000,
+                best_size=850,
+                passes=["x", "y", "z"],
+            ),
+        ]
+
+        chunks = mine_chunks(
+            results,
+            config=ChunkInventoryConfig(
+                ngram_max=2,
+                closure_theta=1.0,
+                min_support=2,
+                top_chunks=5,
+                macro_top=1,
+                min_inventory=1,
+            ),
+        )
+
+        self.assertEqual([chunk.kind for chunk in chunks], ["macro"])
+        self.assertEqual(chunks[0].passes, ("x", "y", "z"))
+        self.assertEqual(chunks[0].weight, 150)
+
+    def test_chunk_forest_pool_is_deterministic_and_marks_partial_chunks(self) -> None:
+        chunks = [
+            Chunk(("a", "b"), 10, "mined", 2),
+            Chunk(("c", "d", "e"), 8, "mined", 2),
+        ]
+        graph = build_chunk_graph(
+            chunks,
+            [
+                FunctionPassResult(
+                    function="demo-v0_f.bc",
+                    baseline_size=100,
+                    best_size=80,
+                    passes=["a", "b", "c", "d", "e"],
+                )
+            ],
+        )
+
+        left = generate_candidate_pool(
+            graph,
+            config=ChunkWalkConfig(pool_size=20, walk_seed=3, max_length=4),
+        )
+        right = generate_candidate_pool(
+            graph,
+            config=ChunkWalkConfig(pool_size=20, walk_seed=3, max_length=4),
+        )
+
+        self.assertEqual(left, right)
+        candidate = next(item for item in left if item.passes == ("a", "b", "c", "d"))
+        self.assertEqual([ref.chunk_index for ref in candidate.chunks], [0, 1])
+        self.assertFalse(candidate.chunks[0].partial)
+        self.assertTrue(candidate.chunks[1].partial)
+
+    def test_chunk_forest_selection_prefers_shared_prefix_and_diversity(self) -> None:
+        chunks = (
+            Chunk(("a", "b"), 10, "mined", 2),
+            Chunk(("a", "c"), 10, "mined", 2),
+            Chunk(("d", "e"), 9, "mined", 2),
+        )
+        pool = [
+            CandidatePath(("a", "b"), (ChunkRef(0, 0, 2),)),
+            CandidatePath(("a", "c"), (ChunkRef(1, 0, 2),)),
+            CandidatePath(("d", "e"), (ChunkRef(2, 0, 2),)),
+        ]
+
+        selected, _, _ = select_paths(
+            pool,
+            chunks,
+            {0: 10, 1: 10, 2: 9},
+            config=ChunkSelectionConfig(paths=2, lambda_cache=2.0, gamma_diversity=0.5),
+        )
+
+        self.assertEqual([candidate.passes for candidate in selected], [("a", "b"), ("a", "c")])
+
+        duplicate_pool = [
+            CandidatePath(("a", "b"), (ChunkRef(0, 0, 2),)),
+            CandidatePath(("a", "b", "x"), (ChunkRef(0, 0, 2),)),
+            CandidatePath(("d", "e"), (ChunkRef(2, 0, 2),)),
+        ]
+        selected, _, _ = select_paths(
+            duplicate_pool,
+            chunks,
+            {0: 10, 2: 9},
+            config=ChunkSelectionConfig(paths=2, lambda_cache=0.0, gamma_diversity=0.1),
+        )
+        self.assertEqual(selected[1].passes, ("d", "e"))
+
+    def test_chunk_forest_credit_assignment_and_rescale_use_tu_bytes(self) -> None:
+        chunks = (
+            Chunk(("bad",), 1000, "mined", 2),
+            Chunk(("good",), 10, "mined", 2),
+        )
+        candidates = [
+            CandidatePath(("bad", "good"), (ChunkRef(0, 0, 1), ChunkRef(1, 1, 2))),
+            CandidatePath(("bad",), (ChunkRef(0, 0, 1),)),
+            CandidatePath(("good",), (ChunkRef(1, 0, 1),)),
+            CandidatePath(("good", "bad"), (ChunkRef(1, 0, 1), ChunkRef(0, 1, 2))),
+        ]
+        prefix_cache = {
+            (): {"size": 100, "error": ""},
+            ("bad",): {"size": 105, "error": ""},
+            ("bad", "good"): {"size": 95, "error": ""},
+            ("good",): {"size": 90, "error": ""},
+            ("good", "bad"): {"size": 91, "error": ""},
+        }
+
+        observations = evaluate_chunk_forest.assign_chunk_credit(candidates, prefix_cache)
+        values, measured_count, scale = evaluate_chunk_forest.rescore_chunk_values(chunks, observations)
+
+        self.assertEqual(observations[0], [-5, -5, -1])
+        self.assertEqual(observations[1], [10, 10, 10])
+        self.assertEqual(measured_count, 2)
+        self.assertLess(values[0], 0)
+        self.assertEqual(values[1], 10)
+        self.assertLess(scale, 0.01)
+
+    def test_chunk_forest_evaluator_works_on_single_function_mock(self) -> None:
+        results = [
+            FunctionPassResult(
+                function="demo-v0_one.bc",
+                baseline_size=100,
+                best_size=70,
+                passes=["a", "b"],
+            )
+        ]
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 95
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - {"a": 10, "b": 15}[passes[0]]
+
+        args = type(
+            "Args",
+            (),
+            {
+                "ngram_max": 4,
+                "closure_theta": 0.8,
+                "min_support": 2,
+                "top_chunks": 30,
+                "macro_top": 3,
+                "pool_size": 50,
+                "walk_seed": 7,
+                "max_length": 12,
+                "waves": 2,
+                "paths": 4,
+                "lambda_cache": 0.0,
+                "gamma_diversity": 0.5,
+                "max_real_evals_per_benchmark": 0,
+            },
+        )()
+        original_measure = evaluate_chunk_forest.measure_text_size
+        original_optimize = evaluate_chunk_forest.optimize_oz
+        cache_globals = evaluate_chunk_forest.evaluate_candidate_with_prefix_cache.__globals__
+        original_cache_measure = cache_globals["measure_text_size"]
+        original_apply = cache_globals["apply_pass_sequence"]
+        try:
+            evaluate_chunk_forest.measure_text_size = fake_measure
+            evaluate_chunk_forest.optimize_oz = fake_optimize
+            cache_globals["measure_text_size"] = fake_measure
+            cache_globals["apply_pass_sequence"] = fake_apply
+            selected, candidates, cache_count = evaluate_chunk_forest.evaluate_chunk_forest_for_benchmark(
+                "demo-v0",
+                results,
+                Path("demo.bc"),
+                args=args,
+            )
+        finally:
+            evaluate_chunk_forest.measure_text_size = original_measure
+            evaluate_chunk_forest.optimize_oz = original_optimize
+            cache_globals["measure_text_size"] = original_cache_measure
+            cache_globals["apply_pass_sequence"] = original_apply
+
+        self.assertEqual(selected["heuristic"], "chunk_forest")
+        self.assertEqual(selected["error"], "")
+        self.assertEqual(selected["best_delta"], 25)
+        self.assertGreaterEqual(len(candidates), 1)
+        self.assertGreaterEqual(cache_count, 2)
+        self.assertGreaterEqual(selected["chunks_macro"] + selected["chunks_single"], 1)
 
     def test_summarize_evaluations_groups_by_heuristic(self) -> None:
         summary = summarize_evaluations(
