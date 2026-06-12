@@ -947,6 +947,38 @@ class TranslationUnitContractTests(unittest.TestCase):
             {candidate.passes for candidate in candidates},
         )
 
+    def test_generate_superpath_segments_falls_back_to_single_nodes(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "e"])
+        args = type(
+            "Args",
+            (),
+            {
+                "segment_min_length": 4,
+                "segment_max_length": 6,
+                "segment_top_k": 100,
+                "segment_max_jaccard": 0.75,
+                "tiny_graph_threshold": 4,
+                "min_edge_weight": 1,
+                "top_starts": 20,
+                "paths_per_start": 20,
+            },
+        )
+        original = evaluate_topk_paths.cycle_breaking_top_start_paths
+        try:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = (
+                lambda *_args, **_kwargs: []
+            )
+            result = evaluate_topk_paths._generate_superpath_segments_with_stats(graph, args)
+        finally:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = original
+
+        self.assertEqual(result.segment_length_floor, 1)
+        self.assertEqual(
+            {tuple(path) for path in result.paths},
+            {(node,) for node in graph.nodes},
+        )
+
     def test_generate_superpath_segments_falls_back_to_length_two(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
         graph.nodes.update(["a", "b", "c", "d", "e"])
@@ -1379,6 +1411,66 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(candidates[0]["superpath_edge_score"], 9)
         self.assertEqual(candidates[0]["passes"], ["a", "b", "c", "d"])
         self.assertEqual(candidates[0]["best_delta"], 16)
+
+    def test_evaluate_superpath_bypasses_delta_filter_for_nonimproving_segments(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "e"])
+        graph.edge_counts[("b", "c")] = 5
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 90
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100)
+
+        args = type(
+            "Args",
+            (),
+            {
+                "heuristic": "cycle_breaking_superpath_topk",
+                "top_k": 10,
+                "superpath_eval_top_k": 10,
+                "max_length": 8,
+                "min_edge_weight": 1,
+                "segment_min_length": 2,
+                "tiny_graph_threshold": 4,
+                "superpath_beam_factor": 5,
+                "superpath_max_candidates": 100,
+                "superpath_min_segment_delta": 1,
+                "superpath_max_overlap": 1,
+            },
+        )
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        original_segments = evaluate_topk_paths._generate_superpath_segments
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            evaluate_topk_paths._generate_superpath_segments = (
+                lambda *_args, **_kwargs: [["a", "b"], ["c", "d"], ["e"]]
+            )
+            selected, candidates, _ = evaluate_topk_paths.evaluate_superpath_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                args=args,
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+            evaluate_topk_paths._generate_superpath_segments = original_segments
+
+        self.assertEqual(selected["error"], "")
+        self.assertEqual(selected["best_delta"], 0)
+        self.assertTrue(selected["segment_delta_filter_bypassed"])
+        self.assertEqual(selected["segment_valid_count"], 3)
+        self.assertGreaterEqual(len(candidates), 1)
 
     def test_evaluate_topk_for_benchmark_selects_best_real_candidate(self) -> None:
         graph = PassOrderGraph(benchmark="demo")

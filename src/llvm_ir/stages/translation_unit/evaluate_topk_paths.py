@@ -197,6 +197,7 @@ def _generate_superpath_segments_with_stats(
             top_starts=args.top_starts,
             paths_per_start=args.paths_per_start,
         )
+        raw_paths.extend([[node] for node in sorted(graph.nodes)])
         floors = [segment_min_length]
         if segment_min_length > 2:
             floors.append(2)
@@ -747,7 +748,7 @@ def evaluate_superpath_for_benchmark(
             segment_length_floor = 1
         segment_eval_start_count = len(prefix_cache)
         segment_candidates: list[SuperSegmentCandidate] = []
-        measured_segments: dict[tuple[str, ...], MeasuredSuperSegment] = {}
+        measured_segments: dict[tuple[str, ...], tuple[int, MeasuredSuperSegment]] = {}
         segment_failures = 0
         segments_filtered_nonpositive = 0
         segments_recovered_from_tail = 0
@@ -770,7 +771,7 @@ def evaluate_superpath_for_benchmark(
                 continue
             if measured_segment.passes in measured_segments:
                 continue
-            measured_segments[measured_segment.passes] = measured_segment
+            measured_segments[measured_segment.passes] = (segment_index, measured_segment)
             if measured_segment.recovered_from_tail:
                 segments_recovered_from_tail += 1
             if measured_segment.truncated_to_best_prefix and not measured_segment.recovered_from_tail:
@@ -785,6 +786,27 @@ def evaluate_superpath_for_benchmark(
                     vertex_delta=measured_segment.vertex_delta,
                 )
             )
+
+        segment_delta_filter_bypassed = False
+        if not segment_candidates and measured_segments:
+            segment_delta_filter_bypassed = True
+            fallback_segments = sorted(
+                measured_segments.values(),
+                key=lambda item: (
+                    item[1].vertex_delta,
+                    -len(item[1].passes),
+                    tuple(reversed(item[1].passes)),
+                ),
+                reverse=True,
+            )[:3]
+            segment_candidates = [
+                SuperSegmentCandidate(
+                    index=index,
+                    passes=segment.passes,
+                    vertex_delta=segment.vertex_delta,
+                )
+                for index, segment in fallback_segments
+            ]
 
         segment_eval_end_count = len(prefix_cache)
         segment_eval_cost = segment_eval_end_count - segment_eval_start_count
@@ -837,6 +859,7 @@ def evaluate_superpath_for_benchmark(
                     "segments_filtered_nonpositive": segments_filtered_nonpositive,
                     "segments_recovered_from_tail": segments_recovered_from_tail,
                     "segments_truncated_to_best_prefix": segments_truncated_to_best_prefix,
+                    "segment_delta_filter_bypassed": segment_delta_filter_bypassed,
                     "superpath_truncated": superpath_result.truncated,
                     "segment_eval_cost": segment_eval_cost,
                     "superpath_eval_cost": 0,
@@ -894,6 +917,7 @@ def evaluate_superpath_for_benchmark(
                 "segments_filtered_nonpositive": segments_filtered_nonpositive,
                 "segments_recovered_from_tail": segments_recovered_from_tail,
                 "segments_truncated_to_best_prefix": segments_truncated_to_best_prefix,
+                "segment_delta_filter_bypassed": segment_delta_filter_bypassed,
                 "superpath_truncated": superpath_result.truncated,
             }
         prefix_failures = sum(1 for entry in prefix_cache.values() if entry.get("error"))
