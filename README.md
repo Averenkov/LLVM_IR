@@ -689,35 +689,70 @@ scripts/nightly_big_pass_search_and_heuristics.sh
 
 ### Основные TU Результаты
 
-Ниже приведены результаты на `30` benchmark-ах. Основная метрика - weighted best
-improvement: суммарный выигрыш, делённый на суммарный baseline, поэтому большие
-benchmark-и влияют на итог пропорционально своему размеру.
+Ниже приведены лучшие сохранённые отчёты на `30` benchmark-ах. Основная
+метрика - weighted best improvement: суммарный выигрыш, делённый на суммарный
+baseline, поэтому большие benchmark-и влияют на итог пропорционально своему
+размеру. Все значения взяты из JSON-отчётов в `runs/`; `n/a` означает, что в
+этом запуске machine instruction count не измерялся.
 
-| Эксперимент | Graph weight | Candidates | `.text` total best delta | `.text` weighted best | Instruction total best delta | Instruction weighted best | Better than `-Oz` |
-|---|---|---:|---:|---:|---:|---:|---:|
-| `cycle_breaking_max_path_top1000` | `delta` | 9427 | 73294 | 7.0946% | n/a | n/a | 20/30 |
-| `top10 starts x top10 paths` | `delta` | 1084 | 73879 | 7.1513% | 16802 | 8.1488% | 20/30 |
-| `top20 starts x top20 paths` | `delta` | 2734 | 74331 | 7.1950% | 16913 | 8.2026% | 20/30 |
-| `top10 starts x top10 paths` | `delta_distance` | 1082 | 74055 | 7.1683% | 16843 | 8.1687% | 20/30 |
-| `random_walk_top1000` | `delta` | 7588 | 77495 | 7.5013% | 17383 | 8.4306% | 21/30 |
+#### Лучшие Graph/Top-K/TU Эвристики
 
-Выводы из таблицы:
+| Эвристика / запуск | Report | `.text` total best delta | `.text` weighted best | Instruction total best delta | Instruction weighted best | Better than `-Oz` |
+|---|---|---:|---:|---:|---:|---:|
+| `random_walk_top1000` | `runs/random_walk_top1000_instr_20260608_224901/tu_eval_random_walk_top1000_instr.json` | 77495 | 7.5013% | 17383 | 8.4306% | 21/30 |
+| `cycle_breaking_top_starts_top_paths` (`top20 x top20`) | `runs/cycle_top20_starts_top20_paths_instr_20260605_114124/tu_eval_cycle_top20_starts_top20_paths_instr.json` | 74331 | 7.1950% | 16913 | 8.2026% | 20/30 |
+| `cycle_breaking_top_starts_top_paths` (`top10 x top10`, `delta_distance`) | `runs/cycle_top10_starts_top10_paths_delta_distance_instr_20260607_101117/tu_eval_cycle_top20_starts_top10_paths_delta_distance_instr.json` | 74055 | 7.1683% | 16843 | 8.1687% | 20/30 |
+| `cycle_breaking_max_path_top1000` | `runs/cycle_max_path_top1000_20260604_211303/tu_eval_cycle_breaking_max_path_top1000.json` | 73294 | 7.0946% | n/a | n/a | 20/30 |
+| `cycle_breaking_diverse_starts_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_cycle_breaking_diverse_starts.json` | 73158 | 7.0815% | n/a | n/a | 20/30 |
+| `cycle_breaking_superpath_topk` | `runs/superpath_top250_len20_segmin1_full_20260612_011504/tu_eval_cycle_superpath_top250_instr.json` | 66982 | 6.4836% | 15691 | 7.6100% | 22/30 |
+| `cycle_breaking_max_path_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_cycle_breaking_max_path.json` | 65449 | 6.3353% | n/a | n/a | 19/30 |
+| `chunk_forest` (`500 paths`, `2 waves`) | `runs/post_bugfix_random_20260611_120635/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json` | 63506 | 6.1472% | 14863 | 7.2084% | 23/30 |
+| `beam_search` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 62814 | 6.0802% | n/a | n/a | 23/30 |
+| `cycle_breaking_max_path` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 62745 | 6.0735% | n/a | n/a | 19/30 |
+| `random_walk_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_random_walk_exhaustive_len6.json` | 62060 | 6.0072% | n/a | n/a | 20/30 |
+| `exhaustive_len6` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 58989 | 5.7099% | n/a | n/a | 21/30 |
+| `random_walk` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 58946 | 5.7058% | n/a | n/a | 22/30 |
+| `weighted_toposort` | `runs/post_bugfix_full_20260611_091641/cem/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 54708 | 5.2956% | n/a | n/a | 20/30 |
+| `dag_longest_path` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 50846 | 4.9217% | n/a | n/a | 18/30 |
+| `greedy_consensus` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 34300 | 3.3201% | n/a | n/a | 18/30 |
 
-- Top-k проверка реальным запуском на TU лучше, чем выбор только одного
-  graph-best пути.
-- Увеличение числа кандидатов с `top10 x top10` до `top20 x top20` даёт лучший
-  результат, но прирост небольшой: `7.1513% -> 7.1950%` по `.text` и
-  `8.1488% -> 8.2026%` по инструкциям.
-- Distance-aware веса улучшают `top10 x top10` относительно обычного `delta`:
-  `7.1513% -> 7.1683%` по `.text` и `8.1488% -> 8.1687%` по инструкциям.
-- `random_walk_top1000` показывает лучший сохранённый результат: `7.5013%`
-  по `.text` и `8.4306%` по числу машинных инструкций. В отличие от
-  `random_walk_top10`, он генерирует больше случайных путей (`50000` walks),
-  выбирает top-1000 уникальных кандидатов по graph score и затем проверяет их
-  реальным запуском на TU.
-- Во всех основных TU-запусках `30/30` benchmark-ов имеют улучшенный best prefix
-  относительно baseline. Лучший запуск `random_walk_top1000` превосходит `-Oz`
-  на `21/30` benchmark-ах.
+#### Лучшие Aggregation Эвристики
+
+Все строки ниже взяты из одного full-30 запуска:
+`runs/aggregation_all11_random_full_20260612_011206/tu_eval_all_aggregation_heuristics.json`.
+Для top-k aggregation-методов указана лучшая full-30 строка `top1`, потому что
+последующие top-k строки в этом отчёте покрывают не все `30` benchmark-ов.
+
+| Aggregation эвристика | `.text` total best delta | `.text` weighted best | Better than `-Oz` | Failed |
+|---|---:|---:|---:|---:|
+| `hpp_eades_topk_top1` | 62793 | 6.0782% | 24/30 | 3 |
+| `markov_hitting` | 60829 | 5.8881% | 21/30 | 2 |
+| `beam_diversity_top1` | 59670 | 5.7759% | 22/30 | 2 |
+| `scc_ordering` | 56212 | 5.4411% | 22/30 | 0 |
+| `pagerank` | 25095 | 2.4291% | 22/30 | 1 |
+| `hpp` | 24412 | 2.3630% | 20/30 | 1 |
+| `ilp_arrangement` | 24412 | 2.3630% | 20/30 | 1 |
+| `wfas_eades` | 24412 | 2.3630% | 20/30 | 1 |
+| `voting_ensemble` | 24158 | 2.3384% | 22/30 | 1 |
+| `position_median` | 21222 | 2.0542% | 20/30 | 1 |
+| `cluster_aware_top1` | 20960 | 2.0289% | 20/30 | 2 |
+
+Выводы из таблиц:
+
+- Лучший сохранённый результат остаётся у `random_walk_top1000`: `7.5013%` по
+  `.text` и `8.4306%` по числу машинных инструкций.
+- Лучшая детерминированная graph/top-k схема -
+  `cycle_breaking_top_starts_top_paths` (`top20 x top20`): `7.1950%` по `.text`
+  и `8.2026%` по инструкциям.
+- `cycle_breaking_superpath_topk` после фиксов единиц измерения даёт `6.4836%`
+  по `.text`; лучший более поздний fixed-запуск был стабильнее по реализации,
+  но ниже по сохранённым метрикам (`6.3522%`).
+- `chunk_forest` в первом full-запуске даёт `6.1472%` по `.text` и `7.2084%` по
+  инструкциям, но средний пул получился маленьким (`~20` уникальных путей на
+  benchmark), поэтому вторая волна фактически не раскрылась.
+- Среди aggregation-эвристик сильнее всего выглядит `hpp_eades_topk_top1`
+  (`6.0782%`), затем `markov_hitting` (`5.8881%`) и `beam_diversity_top1`
+  (`5.7759%`).
 
 ### Интерпретация Для Диплома
 
@@ -782,6 +817,9 @@ Distance-aware веса являются попыткой точнее коди�
 | Delta-distance Top10 x Top10 TU eval | `runs/cycle_top10_starts_top10_paths_delta_distance_instr_20260607_101117/tu_eval_cycle_top20_starts_top10_paths_delta_distance_instr.json` |
 | Random Walk Top1000 TU eval | `runs/random_walk_top1000_instr_20260608_224901/tu_eval_random_walk_top1000_instr.json` |
 | Top1000 cycle-breaking eval | `runs/cycle_max_path_top1000_20260604_211303/tu_eval_cycle_breaking_max_path_top1000.json` |
+| Superpath Top250 len20 eval | `runs/superpath_top250_len20_segmin1_full_20260612_011504/tu_eval_cycle_superpath_top250_instr.json` |
+| Chunk-Forest eval | `runs/post_bugfix_random_20260611_120635/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json` |
+| Aggregation all-11 TU eval | `runs/aggregation_all11_random_full_20260612_011206/tu_eval_all_aggregation_heuristics.json` |
 
 
 ## Полный Эксперимент
