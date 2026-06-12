@@ -1148,10 +1148,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--segment-max-length", type=int, default=6)
     parser.add_argument("--superpath-beam-factor", type=int, default=5)
     parser.add_argument("--superpath-max-candidates", type=int, default=100_000)
-    parser.add_argument("--superpath-min-segment-delta", type=int, default=1)
+    parser.add_argument(
+        "--superpath-min-segment-delta",
+        type=int,
+        default=1,
+        help="Minimum measured best-prefix delta for a segment before fallback.",
+    )
     parser.add_argument("--superpath-max-overlap", type=int, default=1)
     parser.add_argument("--segment-max-jaccard", type=float, default=0.75)
-    parser.add_argument("--tiny-graph-threshold", type=int, default=4)
+    parser.add_argument(
+        "--tiny-graph-threshold",
+        type=int,
+        default=4,
+        help="Enumerate all simple paths when the pass graph has at most this many nodes.",
+    )
     parser.add_argument("--superpath-eval-top-k", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
