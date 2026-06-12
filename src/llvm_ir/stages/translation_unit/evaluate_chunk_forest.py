@@ -19,7 +19,7 @@ from llvm_ir.heuristics.translation_unit.chunk_forest import (
     ChunkWalkConfig,
     build_chunk_graph,
     chunk_kind_counts,
-    generate_candidate_pool,
+    generate_candidate_pool_with_stats,
     mine_chunks,
     select_paths,
 )
@@ -218,17 +218,28 @@ def evaluate_chunk_forest_for_benchmark(
             min_support=args.min_support,
             top_chunks=args.top_chunks,
             macro_top=args.macro_top,
+            singles=args.singles,
+            ngrams_per_bucket=args.ngrams_per_bucket,
         )
         chunks = tuple(mine_chunks(function_results, graph, config=inventory_config))
-        chunk_graph = build_chunk_graph(list(chunks), function_results)
-        pool = generate_candidate_pool(
+        chunk_graph = build_chunk_graph(
+            list(chunks),
+            function_results,
+            graph,
+            splice_epsilon=args.splice_epsilon,
+            start_floor=args.start_floor,
+        )
+        pool_result = generate_candidate_pool_with_stats(
             chunk_graph,
             config=ChunkWalkConfig(
                 pool_size=args.pool_size,
                 walk_seed=args.walk_seed,
                 max_length=args.max_length,
+                teleport=args.teleport,
+                walk_stall=args.walk_stall,
             ),
         )
+        pool = pool_result.paths
         if not pool and chunks:
             pool = _single_chunk_pool(chunks, args.max_length)
         pool_by_passes = {_candidate_key(candidate): candidate for candidate in pool}
@@ -241,12 +252,16 @@ def evaluate_chunk_forest_for_benchmark(
         common = {
             **chunk_kind_counts(chunks),
             "paths": args.paths,
+            "inventory_size": len(chunks),
             "pool_unique_paths": len(pool),
+            "walks_executed": pool_result.walks_executed,
             "wave1_real_evals": 0,
             "wave2_real_evals": 0,
             "chunks_remeasured": 0,
             "rescoring_scale": 0.0,
             "top_chunks": [],
+            "wave2_pool_available": 0,
+            "wave2_skipped": False,
         }
         mined_values = {index: chunk.weight for index, chunk in enumerate(chunks)}
         wave1, trie, picked = select_paths(
@@ -290,6 +305,11 @@ def evaluate_chunk_forest_for_benchmark(
             for index in sorted(rescored_values, key=lambda item: (-rescored_values[item], chunks[item].passes))[:5]
         ]
         if wave_count > 1 and second_wave_target:
+            evaluated_paths = {candidate.passes for candidate in wave1}
+            common["wave2_pool_available"] = sum(
+                1 for candidate in pool if candidate.passes not in evaluated_paths
+            )
+            common["wave2_skipped"] = common["wave2_pool_available"] == 0
             wave2_limit = 0
             if args.max_real_evals_per_benchmark:
                 wave2_limit = max(0, args.max_real_evals_per_benchmark - (len(trie) - 1))
@@ -305,7 +325,7 @@ def evaluate_chunk_forest_for_benchmark(
                 ),
                 initial_trie=trie,
                 initial_picked=picked,
-                excluded_paths={candidate.passes for candidate in wave1},
+                excluded_paths=evaluated_paths,
             )
             rows2, wave2_cost = _evaluate_wave(
                 graph=graph,
@@ -473,12 +493,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--waves", type=int, default=2)
     parser.add_argument("--pool-size", type=int, default=100_000)
     parser.add_argument("--walk-seed", type=int, default=7)
+    parser.add_argument("--teleport", type=float, default=0.15)
+    parser.add_argument("--walk-stall", type=int, default=20_000)
     parser.add_argument("--ngram-max", type=int, default=4)
     parser.add_argument("--closure-theta", type=float, default=0.8)
     parser.add_argument("--min-support", type=int, default=2)
     parser.add_argument("--top-chunks", type=int, default=30)
+    parser.add_argument("--singles", type=int, default=12)
+    parser.add_argument("--ngrams-per-bucket", type=int, default=5)
     parser.add_argument("--macro-top", type=int, default=3)
     parser.add_argument("--max-length", type=int, default=12)
+    parser.add_argument("--splice-epsilon", type=float, default=0.05)
+    parser.add_argument("--start-floor", type=float, default=0.1)
     parser.add_argument("--lambda-cache", type=float, default=0.0)
     parser.add_argument("--gamma-diversity", type=float, default=0.5)
     parser.add_argument("--max-real-evals-per-benchmark", type=int, default=0)
@@ -505,6 +531,14 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--min-support must be positive")
     if args.top_chunks < 0 or args.macro_top < 0:
         raise ValueError("--top-chunks and --macro-top must be non-negative")
+    if args.singles < 0 or args.ngrams_per_bucket < 0:
+        raise ValueError("--singles and --ngrams-per-bucket must be non-negative")
+    if not 0.0 <= args.teleport <= 1.0:
+        raise ValueError("--teleport must be between 0 and 1")
+    if args.walk_stall < 0:
+        raise ValueError("--walk-stall must be non-negative")
+    if args.splice_epsilon < 0.0 or args.start_floor < 0.0:
+        raise ValueError("--splice-epsilon and --start-floor must be non-negative")
     if args.max_length <= 0:
         raise ValueError("--max-length must be positive")
     if args.max_real_evals_per_benchmark < 0:

@@ -46,7 +46,8 @@ class ChunkInventoryConfig:
     min_support: int = 2
     top_chunks: int = 30
     macro_top: int = 3
-    min_inventory: int = 10
+    singles: int = 12
+    ngrams_per_bucket: int = 5
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ class ChunkWalkConfig:
     pool_size: int = 100_000
     walk_seed: int = 7
     max_length: int = 12
+    teleport: float = 0.15
+    walk_stall: int = 20_000
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,13 @@ class ChunkGraph:
     chunks: tuple[Chunk, ...]
     start_weights: dict[int, float]
     edges: dict[int, dict[int, float]]
+    overlaps: dict[tuple[int, int], int]
+
+
+@dataclass(frozen=True)
+class CandidatePoolResult:
+    paths: list[CandidatePath]
+    walks_executed: int
 
 
 def positive_function_results(results: list[FunctionPassResult]) -> list[FunctionPassResult]:
@@ -82,19 +92,9 @@ def mine_chunks(
     config: ChunkInventoryConfig = ChunkInventoryConfig(),
 ) -> list[Chunk]:
     positives = positive_function_results(results)
-    mined: list[Chunk] = []
+    core_weights, core_supports = _raw_ngram_stats(positives, config.ngram_max)
+    closed_chunks: list[Chunk] = []
     if positives and len(positives) >= config.min_support:
-        core_weights: dict[tuple[str, ...], float] = defaultdict(float)
-        core_supports: dict[tuple[str, ...], int] = defaultdict(int)
-        for result in positives:
-            seen: set[tuple[str, ...]] = set()
-            max_ngram = min(config.ngram_max, len(result.passes))
-            for length in range(2, max_ngram + 1):
-                for start in range(0, len(result.passes) - length + 1):
-                    seen.add(tuple(result.passes[start : start + length]))
-            for core in seen:
-                core_weights[core] += result.delta
-                core_supports[core] += 1
         closed_by_passes: dict[tuple[str, ...], Chunk] = {}
         for core, core_weight in sorted(core_weights.items(), key=lambda item: (-item[1], item[0])):
             if core_supports[core] < config.min_support:
@@ -107,23 +107,82 @@ def mine_chunks(
             previous = closed_by_passes.get(closed)
             if previous is None or chunk.weight > previous.weight:
                 closed_by_passes[closed] = chunk
-        mined = sorted(
+        closed_chunks = sorted(
             closed_by_passes.values(),
             key=lambda chunk: (-chunk.weight, -chunk.support, chunk.passes),
-        )[: config.top_chunks]
+        )
 
+    raw_bucket_chunks = _raw_ngram_bucket_chunks(
+        core_weights,
+        core_supports,
+        protected_chunks=closed_chunks,
+        config=config,
+    )
+    mined = sorted(
+        _dedupe_chunks(closed_chunks + raw_bucket_chunks),
+        key=lambda chunk: (-chunk.weight, -chunk.support, chunk.passes),
+    )[: config.top_chunks]
     macros = [
         Chunk(tuple(result.passes), float(result.delta), "macro", 1)
         for result in sorted(positives, key=lambda item: (-item.delta, item.function))[: config.macro_top]
         if result.passes
     ]
-    inventory = _dedupe_chunks(mined + macros)
-    if len(inventory) < config.min_inventory:
-        inventory = _dedupe_chunks(
-            inventory
-            + _single_chunks(positives, graph, needed=config.min_inventory - len(inventory))
+    singles = _single_chunks(positives, graph, count=config.singles)
+    return _dedupe_chunks(mined + macros + singles)
+
+
+def _raw_ngram_stats(
+    results: list[FunctionPassResult],
+    ngram_max: int,
+) -> tuple[dict[tuple[str, ...], float], dict[tuple[str, ...], int]]:
+    weights: dict[tuple[str, ...], float] = defaultdict(float)
+    supports: dict[tuple[str, ...], int] = defaultdict(int)
+    for result in results:
+        seen: set[tuple[str, ...]] = set()
+        max_ngram = min(ngram_max, len(result.passes))
+        for length in range(2, max_ngram + 1):
+            for start in range(0, len(result.passes) - length + 1):
+                seen.add(tuple(result.passes[start : start + length]))
+        for core in seen:
+            weights[core] += result.delta
+            supports[core] += 1
+    return dict(weights), dict(supports)
+
+
+def _raw_ngram_bucket_chunks(
+    weights: dict[tuple[str, ...], float],
+    supports: dict[tuple[str, ...], int],
+    *,
+    protected_chunks: list[Chunk],
+    config: ChunkInventoryConfig,
+) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    for length in range(2, config.ngram_max + 1):
+        candidates = [
+            Chunk(passes, weights[passes], "mined", supports[passes])
+            for passes in weights
+            if len(passes) == length and supports[passes] >= config.min_support
+        ]
+        filtered = [
+            chunk
+            for chunk in candidates
+            if not _is_subsequence_covered(chunk, protected_chunks + chunks)
+        ]
+        chunks.extend(
+            sorted(filtered, key=lambda chunk: (-chunk.weight, -chunk.support, chunk.passes))[
+                : config.ngrams_per_bucket
+            ]
         )
-    return inventory
+    return chunks
+
+
+def _is_subsequence_covered(candidate: Chunk, chunks: list[Chunk]) -> bool:
+    for chunk in chunks:
+        if len(chunk.passes) < len(candidate.passes) or chunk.weight <= candidate.weight:
+            continue
+        if _find_occurrences(chunk.passes, candidate.passes):
+            return True
+    return False
 
 
 def _close_chunk(
@@ -183,7 +242,7 @@ def _single_chunks(
     results: list[FunctionPassResult],
     graph: PassOrderGraph | None,
     *,
-    needed: int,
+    count: int,
 ) -> list[Chunk]:
     pass_weight: dict[str, float] = defaultdict(float)
     pass_support: dict[str, int] = defaultdict(int)
@@ -197,11 +256,14 @@ def _single_chunks(
             pass_support.setdefault(node, 0)
     ranked = sorted(
         pass_weight,
-        key=lambda node: (-(pass_weight[node] + max(node_priority(graph, node), 0) if graph else pass_weight[node]), node),
+        key=lambda node: (
+            -(pass_weight[node] + max(node_priority(graph, node), 0) if graph else pass_weight[node]),
+            node,
+        ),
     )
     return [
         Chunk((pass_name,), max(pass_weight[pass_name], 1.0), "single", pass_support[pass_name])
-        for pass_name in ranked[: max(0, needed)]
+        for pass_name in ranked[: max(0, count)]
     ]
 
 
@@ -218,10 +280,22 @@ def _dedupe_chunks(chunks: list[Chunk]) -> list[Chunk]:
 def build_chunk_graph(
     chunks: list[Chunk],
     results: list[FunctionPassResult],
+    graph: PassOrderGraph | None = None,
+    *,
+    splice_epsilon: float = 0.05,
+    start_floor: float = 0.1,
 ) -> ChunkGraph:
+    """Build a chunk graph with observed, splice, and normalized glue edges.
+
+    Observed and splice weights are function-level delta supports. Glue edges use
+    pass-level order-graph weights scaled by the ratio of median existing chunk
+    edge weight to median used pass-edge weight, so the fallback remains on the
+    same functional-weight scale instead of mixing in measured TU bytes.
+    """
     positives = positive_function_results(results)
     start_weights: dict[int, float] = defaultdict(float)
     edge_weights: dict[int, dict[int, float]] = defaultdict(lambda: defaultdict(float))
+    overlaps: dict[tuple[int, int], int] = {}
     for result in positives:
         occurrences: dict[int, list[int]] = {}
         for index, chunk in enumerate(chunks):
@@ -243,14 +317,68 @@ def build_chunk_graph(
                         break
                 if found:
                     edge_weights[left_index][right_index] += result.delta
-    if not start_weights:
-        for index, chunk in enumerate(chunks):
-            start_weights[index] = max(chunk.weight, 1.0)
+                    overlaps.setdefault((left_index, right_index), 0)
+
+    for left_index, left in enumerate(chunks):
+        for right_index, right in enumerate(chunks):
+            if left_index == right_index or edge_weights[left_index].get(right_index, 0) > 0:
+                continue
+            overlap = _max_splice_overlap(left.passes, right.passes)
+            if overlap <= 0:
+                continue
+            merged = left.passes + right.passes[overlap:]
+            weight, _support = _chain_weight_and_support(merged, positives)
+            if weight <= 0 and splice_epsilon > 0:
+                weight = splice_epsilon * min(left.weight, right.weight)
+            if weight > 0:
+                edge_weights[left_index][right_index] = weight
+                overlaps[(left_index, right_index)] = overlap
+
+    if graph is not None:
+        _add_order_graph_glue_edges(chunks, graph, edge_weights, overlaps)
+
+    for index, chunk in enumerate(chunks):
+        floor = start_floor * chunk.weight
+        start_weights[index] = max(start_weights.get(index, 0.0), floor)
     return ChunkGraph(
         chunks=tuple(chunks),
         start_weights=dict(start_weights),
         edges={source: dict(targets) for source, targets in edge_weights.items()},
+        overlaps=dict(overlaps),
     )
+
+
+def _max_splice_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    max_overlap = min(len(left), len(right) - 1)
+    for width in range(max_overlap, 0, -1):
+        if left[-width:] == right[:width]:
+            return width
+    return 0
+
+
+def _add_order_graph_glue_edges(
+    chunks: list[Chunk],
+    graph: PassOrderGraph,
+    edge_weights: dict[int, dict[int, float]],
+    overlaps: dict[tuple[int, int], int],
+) -> None:
+    existing = [weight for targets in edge_weights.values() for weight in targets.values() if weight > 0]
+    pass_edges: list[int] = []
+    pairs: list[tuple[int, int, int]] = []
+    for left_index, left in enumerate(chunks):
+        for right_index, right in enumerate(chunks):
+            if left_index == right_index or edge_weights[left_index].get(right_index, 0) > 0:
+                continue
+            weight = graph.edge_counts.get((left.passes[-1], right.passes[0]), 0)
+            if weight > 0:
+                pass_edges.append(weight)
+                pairs.append((left_index, right_index, weight))
+    if not pairs:
+        return
+    glue_scale = (median(existing) / median(pass_edges)) if existing and pass_edges else 1.0
+    for left_index, right_index, weight in pairs:
+        edge_weights[left_index][right_index] = weight * glue_scale
+        overlaps[(left_index, right_index)] = 0
 
 
 def generate_candidate_pool(
@@ -258,55 +386,90 @@ def generate_candidate_pool(
     *,
     config: ChunkWalkConfig = ChunkWalkConfig(),
 ) -> list[CandidatePath]:
+    return generate_candidate_pool_with_stats(chunk_graph, config=config).paths
+
+
+def generate_candidate_pool_with_stats(
+    chunk_graph: ChunkGraph,
+    *,
+    config: ChunkWalkConfig = ChunkWalkConfig(),
+) -> CandidatePoolResult:
     if not chunk_graph.chunks or config.pool_size <= 0 or config.max_length <= 0:
-        return []
+        return CandidatePoolResult(paths=[], walks_executed=0)
     rng = random.Random(config.walk_seed)
     unique: dict[tuple[str, ...], CandidatePath] = {}
-    for _ in range(config.pool_size):
-        start = _weighted_choice(chunk_graph.start_weights, rng)
+    stalls = 0
+    walks_executed = 0
+    for walk_index in range(config.pool_size):
+        walks_executed = walk_index + 1
+        start_weights = _teleport_weights(chunk_graph, set()) if config.teleport > 0 else chunk_graph.start_weights
+        start = _weighted_choice(start_weights, rng)
         if start is None:
             break
         used = {start}
         chunk_indexes = [start]
+        candidate = _candidate_from_chunks(chunk_graph, chunk_indexes, config.max_length)
         current = start
-        while True:
+        while len(candidate.passes) < config.max_length and len(used) < len(chunk_graph.chunks):
             outgoing = {
                 index: weight
                 for index, weight in chunk_graph.edges.get(current, {}).items()
                 if index not in used and weight > 0
             }
-            next_index = _weighted_choice(outgoing, rng)
+            if not outgoing and config.teleport <= 0:
+                break
+            use_teleport = not outgoing or rng.random() < config.teleport
+            if use_teleport:
+                next_index = _weighted_choice(_teleport_weights(chunk_graph, used), rng)
+            else:
+                next_index = _weighted_choice(outgoing, rng)
             if next_index is None:
                 break
             chunk_indexes.append(next_index)
             used.add(next_index)
             current = next_index
-            if sum(len(chunk_graph.chunks[index].passes) for index in chunk_indexes) >= config.max_length:
-                break
-        candidate = _candidate_from_chunks(chunk_graph.chunks, chunk_indexes, config.max_length)
+            candidate = _candidate_from_chunks(chunk_graph, chunk_indexes, config.max_length)
         if candidate.passes and candidate.passes not in unique:
             unique[candidate.passes] = candidate
-    return sorted(unique.values(), key=lambda candidate: (candidate.passes, len(candidate.chunks)))
+            stalls = 0
+        else:
+            stalls += 1
+        if config.walk_stall > 0 and stalls >= config.walk_stall:
+            break
+    paths = sorted(unique.values(), key=lambda candidate: (candidate.passes, len(candidate.chunks)))
+    return CandidatePoolResult(paths=paths, walks_executed=walks_executed)
+
+
+def _teleport_weights(chunk_graph: ChunkGraph, used: set[int]) -> dict[int, float]:
+    return {
+        index: max(chunk_graph.start_weights.get(index, 0.0), chunk.weight)
+        for index, chunk in enumerate(chunk_graph.chunks)
+        if index not in used
+    }
 
 
 def _candidate_from_chunks(
-    chunks: tuple[Chunk, ...],
+    chunk_graph: ChunkGraph,
     chunk_indexes: list[int],
     max_length: int,
 ) -> CandidatePath:
     passes: list[str] = []
     refs: list[ChunkRef] = []
+    previous_index: int | None = None
     for chunk_index in chunk_indexes:
-        chunk_passes = chunks[chunk_index].passes
-        if len(passes) >= max_length:
+        chunk_passes = chunk_graph.chunks[chunk_index].passes
+        overlap = chunk_graph.overlaps.get((previous_index, chunk_index), 0) if previous_index is not None else 0
+        append_passes = chunk_passes[overlap:]
+        if len(passes) >= max_length or not append_passes:
             break
         start = len(passes)
         remaining = max_length - len(passes)
-        taken = tuple(chunk_passes[:remaining])
+        taken = tuple(append_passes[:remaining])
         passes.extend(taken)
         end = len(passes)
-        refs.append(ChunkRef(chunk_index, start, end, len(taken) < len(chunk_passes)))
-        if len(taken) < len(chunk_passes):
+        refs.append(ChunkRef(chunk_index, start, end, len(taken) < len(append_passes)))
+        previous_index = chunk_index
+        if len(taken) < len(append_passes):
             break
     return CandidatePath(tuple(passes), tuple(refs))
 
@@ -372,8 +535,7 @@ def select_paths(
         if best_index < 0:
             break
         candidate = remaining.pop(best_index)
-        score = best_gain
-        selected_candidate = CandidatePath(candidate.passes, candidate.chunks, score, best_nodes)
+        selected_candidate = CandidatePath(candidate.passes, candidate.chunks, best_gain, best_nodes)
         selected.append(selected_candidate)
         for ref in candidate.chunks:
             if not ref.partial:

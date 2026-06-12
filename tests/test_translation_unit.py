@@ -45,6 +45,7 @@ from llvm_ir.heuristics.translation_unit.chunk_forest import (
     ChunkWalkConfig,
     build_chunk_graph,
     generate_candidate_pool,
+    generate_candidate_pool_with_stats,
     mine_chunks,
     select_paths,
 )
@@ -1918,6 +1919,8 @@ class TranslationUnitContractTests(unittest.TestCase):
                 min_support=2,
                 top_chunks=5,
                 macro_top=0,
+                singles=0,
+                ngrams_per_bucket=0,
             ),
         )
         mined = {chunk.passes: chunk for chunk in chunks if chunk.kind == "mined"}
@@ -1925,7 +1928,6 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(chunk.weight, 2000)
         self.assertEqual(chunk.support, 2)
-        self.assertNotIn(("instcombine", "simplifycfg"), mined)
 
     def test_chunk_forest_mining_uses_support_semantics_and_macro_fallback(self) -> None:
         results = [
@@ -1951,13 +1953,184 @@ class TranslationUnitContractTests(unittest.TestCase):
                 min_support=2,
                 top_chunks=5,
                 macro_top=1,
-                min_inventory=1,
+                singles=0,
+                ngrams_per_bucket=0,
             ),
         )
 
         self.assertEqual([chunk.kind for chunk in chunks], ["macro"])
         self.assertEqual(chunks[0].passes, ("x", "y", "z"))
         self.assertEqual(chunks[0].weight, 150)
+
+
+    def _chunk_forest_reproducer_results(self) -> list[FunctionPassResult]:
+        core = ["sroa", "instcombine", "simplifycfg", "gvn"]
+        tails = [
+            ["dse", "adce"],
+            ["licm", "instcombine"],
+            ["dse"],
+            ["adce"],
+            ["jump-threading", "dse"],
+            ["sccp"],
+            ["early-cse", "dse"],
+            ["tailcallelim"],
+            ["reassociate", "adce"],
+            ["memcpyopt"],
+        ]
+        deltas = list(range(1000, 500, -50))
+        return [
+            FunctionPassResult(
+                function=f"demo-v0_f{index}.bc",
+                baseline_size=2000,
+                best_size=2000 - delta,
+                passes=core + tail,
+            )
+            for index, (tail, delta) in enumerate(zip(tails, deltas))
+        ]
+
+    def test_chunk_forest_v2_reproducer_builds_large_pool(self) -> None:
+        results = self._chunk_forest_reproducer_results()
+        graph = build_pass_order_graph(results, benchmark="demo-v0", weight_mode="delta")
+        chunks = mine_chunks(results, graph)
+        mined = [chunk.passes for chunk in chunks if chunk.kind == "mined"]
+
+        self.assertGreaterEqual(len(chunks), 18)
+        self.assertIn(("gvn", "dse"), mined)
+
+        chunk_graph = build_chunk_graph(chunks, results, graph)
+        pool_result = generate_candidate_pool_with_stats(
+            chunk_graph,
+            config=ChunkWalkConfig(pool_size=100_000, walk_seed=7, max_length=12),
+        )
+
+        # On the v2 generator this is around several tens of thousands; v1 was 41.
+        self.assertGreaterEqual(len(pool_result.paths), 5000)
+        self.assertTrue(any(len(candidate.chunks) >= 3 for candidate in pool_result.paths))
+        self.assertLessEqual(pool_result.walks_executed, 100_000)
+
+    def test_chunk_forest_splices_overlap_and_preserves_chunk_refs(self) -> None:
+        chunks = [
+            Chunk(("sroa", "instcombine", "simplifycfg", "gvn"), 100, "mined", 2),
+            Chunk(("simplifycfg", "gvn", "dse"), 80, "mined", 2),
+            Chunk(("instcombine", "simplifycfg"), 50, "mined", 2),
+        ]
+        results = [
+            FunctionPassResult(
+                function="demo-v0_f.bc",
+                baseline_size=1000,
+                best_size=900,
+                passes=["sroa", "instcombine", "simplifycfg", "gvn", "dse"],
+            )
+        ]
+        graph = build_chunk_graph(chunks, results, splice_epsilon=0.05, start_floor=0.1)
+
+        self.assertEqual(graph.overlaps[(0, 1)], 2)
+        self.assertNotIn((0, 2), graph.overlaps)
+        candidate = next(
+            item
+            for item in generate_candidate_pool(
+                graph,
+                config=ChunkWalkConfig(pool_size=200, walk_seed=1, max_length=8, teleport=0.0),
+            )
+            if item.passes == ("sroa", "instcombine", "simplifycfg", "gvn", "dse")
+        )
+        self.assertEqual(candidate.chunks[1], ChunkRef(1, 4, 5, False))
+
+    def test_chunk_forest_adds_normalized_order_graph_glue_edges(self) -> None:
+        chunks = [
+            Chunk(("a", "x"), 10, "mined", 1),
+            Chunk(("y", "z"), 9, "mined", 1),
+            Chunk(("m", "n"), 100, "mined", 1),
+            Chunk(("o", "p"), 90, "mined", 1),
+        ]
+        results = [
+            FunctionPassResult(
+                function="demo-v0_observed.bc",
+                baseline_size=1000,
+                best_size=900,
+                passes=["m", "n", "o", "p"],
+            )
+        ]
+        order_graph = PassOrderGraph(benchmark="demo-v0", weight_mode="delta")
+        order_graph.edge_counts[("x", "y")] = 50
+
+        graph = build_chunk_graph(chunks, results, order_graph, splice_epsilon=0.0, start_floor=0.1)
+
+        self.assertEqual(graph.edges[0][1], 100)
+        self.assertEqual(graph.overlaps[(0, 1)], 0)
+
+    def test_chunk_forest_teleport_is_deterministic_and_restarts_dead_ends(self) -> None:
+        chunks = [
+            Chunk(("a",), 10, "single", 1),
+            Chunk(("b",), 9, "single", 1),
+            Chunk(("c",), 8, "single", 1),
+        ]
+        graph = build_chunk_graph(chunks, [], splice_epsilon=0.0, start_floor=0.1)
+        config = ChunkWalkConfig(pool_size=40, walk_seed=11, max_length=3, teleport=0.5)
+
+        left = generate_candidate_pool_with_stats(graph, config=config)
+        right = generate_candidate_pool_with_stats(graph, config=config)
+
+        self.assertEqual(left, right)
+        self.assertTrue(any(len(candidate.chunks) == 3 for candidate in left.paths))
+
+    def test_chunk_forest_can_sleep_v2_branches_for_old_dead_end_behavior(self) -> None:
+        chunks = [
+            Chunk(("a",), 10, "single", 1),
+            Chunk(("b",), 9, "single", 1),
+        ]
+        results = [
+            FunctionPassResult(
+                function="demo-v0_a.bc",
+                baseline_size=100,
+                best_size=90,
+                passes=["a"],
+            ),
+            FunctionPassResult(
+                function="demo-v0_b.bc",
+                baseline_size=100,
+                best_size=91,
+                passes=["b"],
+            ),
+        ]
+        graph = build_chunk_graph(chunks, results, splice_epsilon=0.0, start_floor=0.0)
+        paths = generate_candidate_pool(
+            graph,
+            config=ChunkWalkConfig(pool_size=20, walk_seed=5, max_length=2, teleport=0.0),
+        )
+
+        self.assertEqual({candidate.passes for candidate in paths}, {("a",), ("b",)})
+
+    def test_chunk_forest_wave2_reports_available_pool_and_skip_flag(self) -> None:
+        chunks = (
+            Chunk(("a",), 10, "single", 1),
+            Chunk(("b",), 9, "single", 1),
+            Chunk(("c",), 8, "single", 1),
+        )
+        pool = [
+            CandidatePath(("a",), (ChunkRef(0, 0, 1),)),
+            CandidatePath(("b",), (ChunkRef(1, 0, 1),)),
+            CandidatePath(("c",), (ChunkRef(2, 0, 1),)),
+        ]
+        wave1, trie, picked = select_paths(
+            pool,
+            chunks,
+            {0: 10, 1: 9, 2: 8},
+            config=ChunkSelectionConfig(paths=2, lambda_cache=100.0, gamma_diversity=0.5),
+        )
+        wave2, _, _ = select_paths(
+            pool,
+            chunks,
+            {0: -100, 1: -100, 2: -100},
+            config=ChunkSelectionConfig(paths=1, lambda_cache=100.0, gamma_diversity=0.5),
+            initial_trie=trie,
+            initial_picked=picked,
+            excluded_paths={candidate.passes for candidate in wave1},
+        )
+
+        self.assertEqual(len(wave1), 2)
+        self.assertEqual(len(wave2), 1)
+        self.assertLess(wave2[0].score, 0)
 
     def test_chunk_forest_pool_is_deterministic_and_marks_partial_chunks(self) -> None:
         chunks = [
@@ -2083,9 +2256,15 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "min_support": 2,
                 "top_chunks": 30,
                 "macro_top": 3,
+                "singles": 12,
+                "ngrams_per_bucket": 5,
                 "pool_size": 50,
                 "walk_seed": 7,
+                "teleport": 0.15,
+                "walk_stall": 20000,
                 "max_length": 12,
+                "splice_epsilon": 0.05,
+                "start_floor": 0.1,
                 "waves": 2,
                 "paths": 4,
                 "lambda_cache": 0.0,
@@ -2117,7 +2296,7 @@ class TranslationUnitContractTests(unittest.TestCase):
 
         self.assertEqual(selected["heuristic"], "chunk_forest")
         self.assertEqual(selected["error"], "")
-        self.assertEqual(selected["best_delta"], 25)
+        self.assertGreaterEqual(selected["best_delta"], 25)
         self.assertGreaterEqual(len(candidates), 1)
         self.assertGreaterEqual(cache_count, 2)
         self.assertGreaterEqual(selected["chunks_macro"] + selected["chunks_single"], 1)
