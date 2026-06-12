@@ -924,6 +924,75 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertEqual(weak_glue.edge_score, 10_000)
         self.assertNotEqual(candidates[0].passes, weak_glue.passes)
 
+    def test_superpath_candidate_generation_rejects_high_overlap_segments(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.edge_counts[("c", "b")] = 5
+        segments = [
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=1,
+                passes=("a", "b", "c"),
+                vertex_delta=10,
+                graph_score=0,
+            ),
+            evaluate_topk_paths.SuperSegmentCandidate(
+                index=2,
+                passes=("b", "c", "d"),
+                vertex_delta=9,
+                graph_score=0,
+            ),
+        ]
+
+        candidates = evaluate_topk_paths._build_superpath_candidates(
+            graph,
+            segments,
+            top_k=5,
+            max_pass_length=6,
+            min_edge_weight=1,
+            max_overlap=1,
+        )
+
+        self.assertNotIn(
+            ("a", "b", "c", "b", "c", "d"),
+            {candidate.passes for candidate in candidates},
+        )
+
+    def test_generate_superpath_segments_applies_jaccard_diversity(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        raw_paths = [
+            ["a", "b", "c", "d", "e"],
+            ["a", "b", "c", "d"],
+            ["x", "y", "z", "q"],
+        ]
+        args = type(
+            "Args",
+            (),
+            {
+                "segment_min_length": 2,
+                "segment_max_length": 5,
+                "segment_top_k": 3,
+                "segment_max_jaccard": 0.75,
+                "min_edge_weight": 1,
+                "top_starts": 10,
+                "paths_per_start": 10,
+            },
+        )
+        original = evaluate_topk_paths.cycle_breaking_top_start_paths
+
+        try:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = (
+                lambda *_args, **_kwargs: raw_paths
+            )
+            segments = evaluate_topk_paths._generate_superpath_segments(graph, args)
+        finally:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = original
+
+        self.assertEqual(len(segments), 2)
+        self.assertIn(["x", "y", "z", "q"], segments)
+        self.assertEqual(
+            sum(1 for segment in segments if set(segment) & {"a", "b", "c", "d", "e"}),
+            1,
+        )
+
     def test_superpath_candidate_generation_is_bounded_for_dense_segments(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
         segments = []

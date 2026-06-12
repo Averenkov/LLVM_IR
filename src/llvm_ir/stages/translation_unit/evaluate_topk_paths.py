@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import tempfile
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -173,7 +174,29 @@ def _generate_superpath_segments(
         key=lambda path: _rank_path_for_segments(graph, path),
         reverse=True,
     )
-    return [list(path) for path in ranked[:segment_top_k]]
+    segment_max_jaccard = float(getattr(args, "segment_max_jaccard", 0.75))
+    selected: list[tuple[str, ...]] = []
+    for path in ranked:
+        if all(_jaccard_similarity(path, existing) <= segment_max_jaccard for existing in selected):
+            selected.append(path)
+            if len(selected) >= segment_top_k:
+                break
+    return [list(path) for path in selected]
+
+
+def _jaccard_similarity(left: tuple[str, ...], right: tuple[str, ...]) -> float:
+    left_set = set(left)
+    right_set = set(right)
+    union = left_set | right_set
+    if not union:
+        return 0.0
+    return len(left_set & right_set) / len(union)
+
+
+def _superpath_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    left_counts = Counter(left)
+    right_counts = Counter(right)
+    return sum((left_counts & right_counts).values())
 
 
 def _superpath_rank_key(candidate: SuperPathCandidate) -> tuple[int, int, int, int, tuple[str, ...]]:
@@ -195,6 +218,7 @@ def _build_superpath_candidates(
     min_edge_weight: int,
     beam_factor: int = 5,
     max_candidates: int = 100_000,
+    max_overlap: int = 1,
 ) -> list[SuperPathCandidate]:
     return _build_superpath_candidates_with_stats(
         graph,
@@ -204,6 +228,7 @@ def _build_superpath_candidates(
         min_edge_weight=min_edge_weight,
         beam_factor=beam_factor,
         max_candidates=max_candidates,
+        max_overlap=max_overlap,
     ).candidates
 
 
@@ -216,6 +241,7 @@ def _build_superpath_candidates_with_stats(
     min_edge_weight: int,
     beam_factor: int,
     max_candidates: int,
+    max_overlap: int = 1,
 ) -> SuperPathBuildResult:
     if not segments:
         return SuperPathBuildResult(candidates=[], truncated=False, generated_count=0)
@@ -281,6 +307,8 @@ def _build_superpath_candidates_with_stats(
                 if next_index in used:
                     continue
                 next_segment = by_index[next_index]
+                if _superpath_overlap(current.passes, next_segment.passes) > max_overlap:
+                    continue
                 next_passes = current.passes + next_segment.passes
                 if len(next_passes) > max_pass_length:
                     continue
@@ -636,6 +664,7 @@ def evaluate_superpath_for_benchmark(
             min_edge_weight=args.min_edge_weight,
             beam_factor=args.superpath_beam_factor,
             max_candidates=args.superpath_max_candidates,
+            max_overlap=args.superpath_max_overlap,
         )
         superpath_candidates = superpath_result.candidates
 
@@ -813,6 +842,8 @@ def make_report_payload(
             "superpath_beam_factor": getattr(args, "superpath_beam_factor", 5),
             "superpath_max_candidates": getattr(args, "superpath_max_candidates", 100_000),
             "superpath_min_segment_delta": getattr(args, "superpath_min_segment_delta", 1),
+            "superpath_max_overlap": getattr(args, "superpath_max_overlap", 1),
+            "segment_max_jaccard": getattr(args, "segment_max_jaccard", 0.75),
             "measure_instructions": args.measure_instructions,
         },
         "summary": summary,
@@ -943,6 +974,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--superpath-beam-factor", type=int, default=5)
     parser.add_argument("--superpath-max-candidates", type=int, default=100_000)
     parser.add_argument("--superpath-min-segment-delta", type=int, default=1)
+    parser.add_argument("--superpath-max-overlap", type=int, default=1)
+    parser.add_argument("--segment-max-jaccard", type=float, default=0.75)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
         "--measure-instructions",
@@ -981,6 +1014,10 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--superpath-beam-factor must be positive")
     if args.superpath_max_candidates <= 0:
         raise ValueError("--superpath-max-candidates must be positive")
+    if args.superpath_max_overlap < 0:
+        raise ValueError("--superpath-max-overlap must be non-negative")
+    if not 0.0 <= args.segment_max_jaccard <= 1.0:
+        raise ValueError("--segment-max-jaccard must be between 0 and 1")
 
 
 def main(argv: list[str] | None = None) -> int:
