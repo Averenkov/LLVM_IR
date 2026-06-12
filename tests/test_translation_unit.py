@@ -947,8 +947,136 @@ class TranslationUnitContractTests(unittest.TestCase):
             {candidate.passes for candidate in candidates},
         )
 
+    def test_generate_superpath_segments_falls_back_to_length_two(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "e"])
+        raw_paths = [["a", "b"], ["c"]]
+        args = type(
+            "Args",
+            (),
+            {
+                "segment_min_length": 4,
+                "segment_max_length": 6,
+                "segment_top_k": 100,
+                "segment_max_jaccard": 0.75,
+                "tiny_graph_threshold": 4,
+                "min_edge_weight": 1,
+                "top_starts": 20,
+                "paths_per_start": 20,
+            },
+        )
+        original = evaluate_topk_paths.cycle_breaking_top_start_paths
+        try:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = (
+                lambda *_args, **_kwargs: raw_paths
+            )
+            result = evaluate_topk_paths._generate_superpath_segments_with_stats(graph, args)
+        finally:
+            evaluate_topk_paths.cycle_breaking_top_start_paths = original
+
+        self.assertFalse(result.tiny_graph_mode)
+        self.assertEqual(result.segment_length_floor, 2)
+        self.assertEqual(result.paths, [["a", "b"]])
+
+    def test_generate_superpath_segments_enumerates_all_tiny_graph_paths(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c"])
+        graph.edge_counts[("a", "b")] = 3
+        graph.edge_counts[("b", "c")] = 2
+        args = type(
+            "Args",
+            (),
+            {
+                "segment_min_length": 4,
+                "segment_max_length": 6,
+                "segment_top_k": 100,
+                "segment_max_jaccard": 0.75,
+                "tiny_graph_threshold": 4,
+                "min_edge_weight": 1,
+                "top_starts": 20,
+                "paths_per_start": 20,
+            },
+        )
+
+        result = evaluate_topk_paths._generate_superpath_segments_with_stats(graph, args)
+
+        self.assertTrue(result.tiny_graph_mode)
+        self.assertEqual(result.segment_length_floor, 1)
+        self.assertEqual(
+            {tuple(path) for path in result.paths},
+            {
+                ("a",),
+                ("b",),
+                ("c",),
+                ("a", "b"),
+                ("b", "c"),
+                ("a", "b", "c"),
+            },
+        )
+
+    def test_evaluate_superpath_uses_single_node_tiny_graph_candidate(self) -> None:
+        graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.add("sroa")
+        graph.start_counts["sroa"] = 10
+        sizes: dict[str, int] = {}
+
+        def fake_measure(bitcode_path: Path, workdir: Path) -> int:
+            return sizes.get(str(bitcode_path), 100)
+
+        def fake_optimize(input_bc: Path, output_bc: Path) -> None:
+            sizes[str(output_bc)] = 90
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            sizes[str(output_bc)] = sizes.get(str(input_bc), 100) - 20
+
+        args = type(
+            "Args",
+            (),
+            {
+                "heuristic": "cycle_breaking_superpath_topk",
+                "top_k": 10,
+                "superpath_eval_top_k": 10,
+                "top_starts": 20,
+                "paths_per_start": 20,
+                "max_length": 20,
+                "min_edge_weight": 1,
+                "segment_top_k": 100,
+                "segment_min_length": 4,
+                "segment_max_length": 6,
+                "segment_max_jaccard": 0.75,
+                "tiny_graph_threshold": 4,
+                "superpath_beam_factor": 5,
+                "superpath_max_candidates": 100,
+                "superpath_min_segment_delta": 1,
+                "superpath_max_overlap": 1,
+            },
+        )
+        original_measure = evaluate_topk_paths.measure_text_size
+        original_optimize = evaluate_topk_paths.optimize_oz
+        original_apply = evaluate_topk_paths.apply_pass_sequence
+        try:
+            evaluate_topk_paths.measure_text_size = fake_measure
+            evaluate_topk_paths.optimize_oz = fake_optimize
+            evaluate_topk_paths.apply_pass_sequence = fake_apply
+            selected, candidates, _ = evaluate_topk_paths.evaluate_superpath_for_benchmark(
+                graph,
+                Path("demo.bc"),
+                args=args,
+            )
+        finally:
+            evaluate_topk_paths.measure_text_size = original_measure
+            evaluate_topk_paths.optimize_oz = original_optimize
+            evaluate_topk_paths.apply_pass_sequence = original_apply
+
+        self.assertEqual(selected["error"], "")
+        self.assertEqual(selected["best_delta"], 20)
+        self.assertEqual(selected["segment_length_floor"], 1)
+        self.assertTrue(selected["tiny_graph_mode"])
+        self.assertEqual(candidates[0]["passes"], ["sroa"])
+
     def test_generate_superpath_segments_applies_jaccard_diversity(self) -> None:
         graph = PassOrderGraph(benchmark="demo")
+        graph.nodes.update(["a", "b", "c", "d", "e", "x", "y", "z", "q"])
         raw_paths = [
             ["a", "b", "c", "d", "e"],
             ["a", "b", "c", "d"],

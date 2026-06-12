@@ -72,6 +72,13 @@ class SuperPathBuildResult:
 
 
 @dataclass(frozen=True)
+class SuperSegmentGenerationResult:
+    paths: list[list[str]]
+    segment_length_floor: int
+    tiny_graph_mode: bool
+
+
+@dataclass(frozen=True)
 class MeasuredSuperSegment:
     passes: tuple[str, ...]
     vertex_delta: int
@@ -159,37 +166,103 @@ def _generate_superpath_segments(
     graph: PassOrderGraph,
     args: argparse.Namespace,
 ) -> list[list[str]]:
+    return _generate_superpath_segments_with_stats(graph, args).paths
+
+
+def _generate_superpath_segments_with_stats(
+    graph: PassOrderGraph,
+    args: argparse.Namespace,
+) -> SuperSegmentGenerationResult:
     segment_min_length = int(getattr(args, "segment_min_length", 4))
     segment_max_length = max(segment_min_length, int(getattr(args, "segment_max_length", 6)))
     segment_top_k = max(1, int(getattr(args, "segment_top_k", 100)))
-    raw_paths = cycle_breaking_top_start_paths(
-        graph,
-        config=CycleBreakingMaxPathConfig(
-            max_length=segment_max_length,
-            min_edge_weight=args.min_edge_weight,
-        ),
-        top_starts=args.top_starts,
-        paths_per_start=args.paths_per_start,
-    )
-    unique = {
-        tuple(path): path
-        for path in raw_paths
-        if segment_min_length <= len(path) <= segment_max_length
-    }
-    ranked = sorted(
-        unique,
-        key=lambda path: _rank_path_for_segments(graph, path),
-        reverse=True,
-    )
     segment_max_jaccard = float(getattr(args, "segment_max_jaccard", 0.75))
-    selected: list[tuple[str, ...]] = []
-    for path in ranked:
-        if all(_jaccard_similarity(path, existing) <= segment_max_jaccard for existing in selected):
-            selected.append(path)
-            if len(selected) >= segment_top_k:
-                break
-    return [list(path) for path in selected]
+    tiny_graph_threshold = int(getattr(args, "tiny_graph_threshold", 4))
+    tiny_graph_mode = len(graph.nodes) <= tiny_graph_threshold
 
+    if tiny_graph_mode:
+        raw_paths = _enumerate_tiny_graph_paths(
+            graph,
+            max_length=min(len(graph.nodes), segment_max_length),
+            min_edge_weight=args.min_edge_weight,
+        )
+        floors = [1]
+    else:
+        raw_paths = cycle_breaking_top_start_paths(
+            graph,
+            config=CycleBreakingMaxPathConfig(
+                max_length=segment_max_length,
+                min_edge_weight=args.min_edge_weight,
+            ),
+            top_starts=args.top_starts,
+            paths_per_start=args.paths_per_start,
+        )
+        floors = [segment_min_length]
+        if segment_min_length > 2:
+            floors.append(2)
+        floors.append(1)
+
+    selected_floor = floors[-1]
+    ranked: list[tuple[str, ...]] = []
+    for floor in floors:
+        unique = {
+            tuple(path)
+            for path in raw_paths
+            if floor <= len(path) <= segment_max_length
+        }
+        ranked = sorted(
+            unique,
+            key=lambda path: _rank_path_for_segments(graph, path),
+            reverse=True,
+        )
+        selected_floor = floor
+        if ranked:
+            break
+
+    if tiny_graph_mode:
+        selected = ranked
+    else:
+        selected: list[tuple[str, ...]] = []
+        for path in ranked:
+            if all(_jaccard_similarity(path, existing) <= segment_max_jaccard for existing in selected):
+                selected.append(path)
+                if len(selected) >= segment_top_k:
+                    break
+    return SuperSegmentGenerationResult(
+        paths=[list(path) for path in selected],
+        segment_length_floor=selected_floor,
+        tiny_graph_mode=tiny_graph_mode,
+    )
+
+
+def _enumerate_tiny_graph_paths(
+    graph: PassOrderGraph,
+    *,
+    max_length: int,
+    min_edge_weight: int,
+) -> list[list[str]]:
+    if max_length <= 0:
+        return []
+    adjacency: dict[str, list[str]] = {node: [] for node in graph.nodes}
+    for edge in graph.edges:
+        if edge.weight >= min_edge_weight:
+            adjacency.setdefault(edge.source, []).append(edge.target)
+    for targets in adjacency.values():
+        targets.sort()
+
+    paths: set[tuple[str, ...]] = set()
+
+    def visit(path: tuple[str, ...]) -> None:
+        paths.add(path)
+        if len(path) >= max_length:
+            return
+        for next_node in adjacency.get(path[-1], []):
+            if next_node not in path:
+                visit(path + (next_node,))
+
+    for node in sorted(graph.nodes):
+        visit((node,))
+    return [list(path) for path in sorted(paths)]
 
 def _jaccard_similarity(left: tuple[str, ...], right: tuple[str, ...]) -> float:
     left_set = set(left)
@@ -662,6 +735,16 @@ def evaluate_superpath_for_benchmark(
             prefix_cache[()]["instruction_count"] = baseline_instruction_count
 
         segment_paths = _generate_superpath_segments(graph, args)
+        tiny_graph_mode = len(graph.nodes) <= int(getattr(args, "tiny_graph_threshold", 4))
+        configured_segment_floor = int(getattr(args, "segment_min_length", 4))
+        if tiny_graph_mode:
+            segment_length_floor = 1
+        elif any(len(path) >= configured_segment_floor for path in segment_paths):
+            segment_length_floor = configured_segment_floor
+        elif any(len(path) >= 2 for path in segment_paths):
+            segment_length_floor = 2
+        else:
+            segment_length_floor = 1
         segment_eval_start_count = len(prefix_cache)
         segment_candidates: list[SuperSegmentCandidate] = []
         measured_segments: dict[tuple[str, ...], MeasuredSuperSegment] = {}
@@ -748,6 +831,8 @@ def evaluate_superpath_for_benchmark(
                     "superpath_segments": list(candidate.segment_indexes),
                     "segment_candidate_count": len(segment_paths),
                     "segment_valid_count": len(segment_candidates),
+                    "segment_length_floor": segment_length_floor,
+                    "tiny_graph_mode": tiny_graph_mode,
                     "segment_failures": segment_failures,
                     "segments_filtered_nonpositive": segments_filtered_nonpositive,
                     "segments_recovered_from_tail": segments_recovered_from_tail,
@@ -803,6 +888,8 @@ def evaluate_superpath_for_benchmark(
                 "error_kind": "full_failure",
                 "segment_candidate_count": len(segment_paths),
                 "segment_valid_count": len(segment_candidates),
+                "segment_length_floor": segment_length_floor,
+                "tiny_graph_mode": tiny_graph_mode,
                 "segment_failures": segment_failures,
                 "segments_filtered_nonpositive": segments_filtered_nonpositive,
                 "segments_recovered_from_tail": segments_recovered_from_tail,
@@ -906,6 +993,7 @@ def make_report_payload(
             "superpath_min_segment_delta": getattr(args, "superpath_min_segment_delta", 1),
             "superpath_max_overlap": getattr(args, "superpath_max_overlap", 1),
             "segment_max_jaccard": getattr(args, "segment_max_jaccard", 0.75),
+            "tiny_graph_threshold": getattr(args, "tiny_graph_threshold", 4),
             "superpath_eval_top_k": getattr(args, "superpath_eval_top_k", 0),
             "measure_instructions": args.measure_instructions,
         },
@@ -1039,6 +1127,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--superpath-min-segment-delta", type=int, default=1)
     parser.add_argument("--superpath-max-overlap", type=int, default=1)
     parser.add_argument("--segment-max-jaccard", type=float, default=0.75)
+    parser.add_argument("--tiny-graph-threshold", type=int, default=4)
     parser.add_argument("--superpath-eval-top-k", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
@@ -1082,6 +1171,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--superpath-max-overlap must be non-negative")
     if not 0.0 <= args.segment_max_jaccard <= 1.0:
         raise ValueError("--segment-max-jaccard must be between 0 and 1")
+    if args.tiny_graph_threshold < 0:
+        raise ValueError("--tiny-graph-threshold must be non-negative")
     if args.superpath_eval_top_k < 0:
         raise ValueError("--superpath-eval-top-k must be non-negative")
 
