@@ -1,0 +1,4309 @@
+{
+  "comparison_input": "runs/post_bugfix_random_20260611_120635/random/pass_search/comparison.json",
+  "bitcode_dir": "experiments/translation_unit_bitcode/autotune_stratified_30",
+  "config": {
+    "comparison": "runs/post_bugfix_random_20260611_120635/random/pass_search/comparison.json",
+    "algorithm": "random",
+    "bitcode_dir": "experiments/translation_unit_bitcode/autotune_stratified_30",
+    "output": "runs/chunk_forest_minsup1/tu_eval_chunk_forest.json",
+    "paths": 500,
+    "waves": 2,
+    "pool_size": 100000,
+    "walk_seed": 7,
+    "teleport": 0.15,
+    "walk_stall": 20000,
+    "ngram_max": 4,
+    "closure_theta": 0.8,
+    "min_support": 1,
+    "top_chunks": 60,
+    "singles": 24,
+    "ngrams_per_bucket": 10,
+    "macro_top": 6,
+    "max_length": 12,
+    "splice_epsilon": 0.05,
+    "start_floor": 0.1,
+    "lambda_cache": 0.0,
+    "gamma_diversity": 0.5,
+    "max_real_evals_per_benchmark": 250,
+    "prevalidate_passes": true,
+    "limit": 0,
+    "measure_instructions": true,
+    "instruction_measurement": "deferred",
+    "site_data": [],
+    "overwrite_bitcode": false
+  },
+  "summary": {
+    "chunk_forest": {
+      "benchmarks": 30,
+      "failed": 0,
+      "improved_final": 29,
+      "improved_best": 29,
+      "total_final_delta": 67619,
+      "total_best_delta": 68497,
+      "weighted_final_percent": 6.545302838469372,
+      "weighted_best_percent": 6.630290429119575,
+      "oz_available": 30,
+      "beats_oz_best": 23,
+      "beats_oz_best_percent": 76.66666666666667,
+      "mean_best_prefix_len": 8.233333333333333,
+      "total_baseline_instruction_count": 206190,
+      "total_final_instruction_delta": 16151,
+      "total_best_instruction_delta": 16369,
+      "weighted_final_instruction_percent": 7.833066589068335,
+      "weighted_best_instruction_percent": 7.938794315922208,
+      "oz_instruction_available": 30,
+      "beats_oz_best_instruction": 23,
+      "beats_oz_best_instruction_percent": 76.66666666666667,
+      "mean_best_instruction_prefix_len": 8.166666666666666,
+      "tail_failures": 0,
+      "full_failures": 0,
+      "prefix_failures": 0,
+      "mean_real_evals": 233.5,
+      "total_real_evals": 7005
+    }
+  },
+  "prefix_cache_counts": {
+    "chstone-v0_adpcm": 251,
+    "chstone-v0_aes": 249,
+    "chstone-v0_blowfish": 251,
+    "chstone-v0_dfsin": 251,
+    "chstone-v0_gsm": 250,
+    "chstone-v0_jpeg": 250,
+    "mibench-v1_jpeg-c": 251,
+    "mibench-v1_lame-newmdct-1": 11,
+    "mibench-v1_lame-psymodel": 250,
+    "mibench-v1_lame-takehiro-1": 251,
+    "mibench-v1_mad-1": 251,
+    "mibench-v1_susan-e-2": 251,
+    "npb-v0_122": 2,
+    "npb-v0_3": 251,
+    "npb-v0_4": 251,
+    "opencv-v0_100": 251,
+    "opencv-v0_150": 251,
+    "opencv-v0_3": 250,
+    "opencv-v0_4": 251,
+    "opencv-v0_442": 251,
+    "opencv-v0_50": 251,
+    "tensorflow-v0_1500": 251,
+    "tensorflow-v0_1985": 251,
+    "tensorflow-v0_2": 251,
+    "tensorflow-v0_25": 251,
+    "tensorflow-v0_3": 251,
+    "tensorflow-v0_4": 251,
+    "tensorflow-v0_5": 251,
+    "tensorflow-v0_50": 251,
+    "tensorflow-v0_500": 251
+  },
+  "selected_rows": [
+    {
+      "benchmark": "chstone-v0_adpcm",
+      "heuristic": "chunk_forest",
+      "candidate_index": 17,
+      "start_pass": "indvars",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_adpcm.bc",
+      "baseline_size": 7043,
+      "oz_size": 8157,
+      "oz_delta": -1114,
+      "baseline_instruction_count": 919,
+      "oz_instruction_count": 1123,
+      "oz_instruction_delta": -204,
+      "final_size": 5882,
+      "final_delta": 1161,
+      "best_size": 5882,
+      "best_delta": 1161,
+      "best_prefix_len": 12,
+      "final_instruction_count": 710,
+      "final_instruction_delta": 209,
+      "best_instruction_count": 705,
+      "best_instruction_delta": 214,
+      "best_instruction_prefix_len": 6,
+      "passes": [
+        "indvars",
+        "reassociate",
+        "constmerge",
+        "mem2reg",
+        "bdce",
+        "gvn-hoist",
+        "globaldce",
+        "iroutliner",
+        "infer-address-spaces",
+        "sroa",
+        "loop-predication",
+        "reassociate"
+      ],
+      "best_passes": [
+        "indvars",
+        "reassociate",
+        "constmerge",
+        "mem2reg",
+        "bdce",
+        "gvn-hoist",
+        "globaldce",
+        "iroutliner",
+        "infer-address-spaces",
+        "sroa",
+        "loop-predication",
+        "reassociate"
+      ],
+      "best_instruction_passes": [
+        "indvars",
+        "reassociate",
+        "constmerge",
+        "mem2reg",
+        "bdce",
+        "gvn-hoist"
+      ],
+      "graph_score": {
+        "order_score": 6421,
+        "conflict_score": 2624,
+        "net_score": 3797,
+        "adjacent_score": 2366,
+        "length": 12,
+        "node_coverage": 0.6875
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 33,
+      "chunks_macro": 0,
+      "chunks_single": 16,
+      "paths": 500,
+      "inventory_size": 49,
+      "pool_unique_paths": 60469,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 39,
+      "rescoring_scale": 0.6365934090217387,
+      "top_chunks": [
+        {
+          "passes": [
+            "indvars",
+            "reassociate",
+            "constmerge",
+            "mem2reg"
+          ],
+          "value": 1033.0
+        },
+        {
+          "passes": [
+            "reassociate",
+            "constmerge",
+            "mem2reg"
+          ],
+          "value": 1033.0
+        },
+        {
+          "passes": [
+            "reassociate",
+            "constmerge",
+            "mem2reg",
+            "bdce"
+          ],
+          "value": 638.2857142857143
+        },
+        {
+          "passes": [
+            "constmerge",
+            "mem2reg",
+            "bdce"
+          ],
+          "value": 564.5
+        },
+        {
+          "passes": [
+            "mem2reg",
+            "bdce"
+          ],
+          "value": 552.5
+        }
+      ],
+      "wave2_pool_available": 60411,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 17,
+      "chunk_forest_score": 85.449,
+      "chunk_forest_new_nodes": 1,
+      "chunk_indexes": [
+        6,
+        11,
+        24,
+        38,
+        39
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "chstone-v0_aes",
+      "heuristic": "chunk_forest",
+      "candidate_index": 11,
+      "start_pass": "hotcoldsplit",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_aes.bc",
+      "baseline_size": 12667,
+      "oz_size": 10625,
+      "oz_delta": 2042,
+      "baseline_instruction_count": 2480,
+      "oz_instruction_count": 2057,
+      "oz_instruction_delta": 423,
+      "final_size": 10315,
+      "final_delta": 2352,
+      "best_size": 10315,
+      "best_delta": 2352,
+      "best_prefix_len": 9,
+      "final_instruction_count": 2005,
+      "final_instruction_delta": 475,
+      "best_instruction_count": 2005,
+      "best_instruction_delta": 475,
+      "best_instruction_prefix_len": 9,
+      "passes": [
+        "hotcoldsplit",
+        "attributor",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink",
+        "mem2reg",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink",
+        "mem2reg",
+        "gvn-sink",
+        "loop-load-elim"
+      ],
+      "best_passes": [
+        "hotcoldsplit",
+        "attributor",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink",
+        "mem2reg",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink"
+      ],
+      "best_instruction_passes": [
+        "hotcoldsplit",
+        "attributor",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink",
+        "mem2reg",
+        "div-rem-pairs",
+        "lower-expect",
+        "gvn-sink"
+      ],
+      "graph_score": {
+        "order_score": 16410,
+        "conflict_score": 9744,
+        "net_score": 6666,
+        "adjacent_score": 5000,
+        "length": 12,
+        "node_coverage": 0.7777777777777778
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 19,
+      "chunks_macro": 0,
+      "chunks_single": 9,
+      "paths": 500,
+      "inventory_size": 28,
+      "pool_unique_paths": 50930,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 123,
+      "chunks_remeasured": 28,
+      "rescoring_scale": 0.43609533300839276,
+      "top_chunks": [
+        {
+          "passes": [
+            "div-rem-pairs",
+            "lower-expect",
+            "gvn-sink",
+            "mem2reg"
+          ],
+          "value": 1177.142857142857
+        },
+        {
+          "passes": [
+            "lower-expect",
+            "gvn-sink",
+            "mem2reg"
+          ],
+          "value": 1080.0
+        },
+        {
+          "passes": [
+            "mem2reg"
+          ],
+          "value": 1037.3333333333333
+        },
+        {
+          "passes": [
+            "gvn-sink",
+            "mem2reg"
+          ],
+          "value": 830.4
+        },
+        {
+          "passes": [
+            "attributor"
+          ],
+          "value": 703.0588235294117
+        }
+      ],
+      "wave2_pool_available": 50903,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 11,
+      "chunk_forest_score": -53.44585336538455,
+      "chunk_forest_new_nodes": 4,
+      "chunk_indexes": [
+        25,
+        23,
+        1,
+        3,
+        2,
+        9
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 248
+    },
+    {
+      "benchmark": "chstone-v0_blowfish",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "gvn-sink",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_blowfish.bc",
+      "baseline_size": 24095,
+      "oz_size": 21854,
+      "oz_delta": 2241,
+      "baseline_instruction_count": 1161,
+      "oz_instruction_count": 641,
+      "oz_instruction_delta": 520,
+      "final_size": 21686,
+      "final_delta": 2409,
+      "best_size": 21686,
+      "best_delta": 2409,
+      "best_prefix_len": 5,
+      "final_instruction_count": 640,
+      "final_instruction_delta": 521,
+      "best_instruction_count": 638,
+      "best_instruction_delta": 523,
+      "best_instruction_prefix_len": 5,
+      "passes": [
+        "gvn-sink",
+        "sroa",
+        "consthoist",
+        "sroa",
+        "speculative-execution",
+        "strip-dead-prototypes",
+        "gvn-sink",
+        "sroa",
+        "consthoist",
+        "strip-dead-prototypes",
+        "gvn-sink",
+        "sroa"
+      ],
+      "best_passes": [
+        "gvn-sink",
+        "sroa",
+        "consthoist",
+        "sroa",
+        "speculative-execution"
+      ],
+      "best_instruction_passes": [
+        "gvn-sink",
+        "sroa",
+        "consthoist",
+        "sroa",
+        "speculative-execution"
+      ],
+      "graph_score": {
+        "order_score": 38790,
+        "conflict_score": 32325,
+        "net_score": 6465,
+        "adjacent_score": 10344,
+        "length": 12,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 10,
+      "chunks_macro": 0,
+      "chunks_single": 5,
+      "paths": 500,
+      "inventory_size": 15,
+      "pool_unique_paths": 14259,
+      "walks_executed": 100000,
+      "wave1_real_evals": 124,
+      "wave2_real_evals": 126,
+      "chunks_remeasured": 15,
+      "rescoring_scale": 0.13623054096371962,
+      "top_chunks": [
+        {
+          "passes": [
+            "gvn-sink",
+            "sroa"
+          ],
+          "value": 2095.8571428571427
+        },
+        {
+          "passes": [
+            "gvn-sink"
+          ],
+          "value": 495.23809523809524
+        },
+        {
+          "passes": [
+            "speculative-execution",
+            "consthoist"
+          ],
+          "value": 13.714285714285714
+        },
+        {
+          "passes": [
+            "speculative-execution"
+          ],
+          "value": 11.2
+        },
+        {
+          "passes": [
+            "speculative-execution",
+            "consthoist",
+            "strip-dead-prototypes",
+            "gvn-sink"
+          ],
+          "value": 10.666666666666666
+        }
+      ],
+      "wave2_pool_available": 14224,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 7573.285714285715,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        11,
+        3,
+        10,
+        13,
+        12,
+        14,
+        8,
+        9,
+        0,
+        1,
+        2
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "chstone-v0_dfsin",
+      "heuristic": "chunk_forest",
+      "candidate_index": 8,
+      "start_pass": "newgvn",
+      "start_weight": 105,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_dfsin.bc",
+      "baseline_size": 7747,
+      "oz_size": 6173,
+      "oz_delta": 1574,
+      "baseline_instruction_count": 1200,
+      "oz_instruction_count": 980,
+      "oz_instruction_delta": 220,
+      "final_size": 6606,
+      "final_delta": 1141,
+      "best_size": 6606,
+      "best_delta": 1141,
+      "best_prefix_len": 7,
+      "final_instruction_count": 1097,
+      "final_instruction_delta": 103,
+      "best_instruction_count": 1097,
+      "best_instruction_delta": 103,
+      "best_instruction_prefix_len": 8,
+      "passes": [
+        "newgvn",
+        "ipsccp",
+        "redundant-dbg-inst-elim",
+        "simplifycfg",
+        "bdce",
+        "loop-bound-split",
+        "mem2reg",
+        "sroa",
+        "licm",
+        "bdce",
+        "loop-bound-split",
+        "mem2reg"
+      ],
+      "best_passes": [
+        "newgvn",
+        "ipsccp",
+        "redundant-dbg-inst-elim",
+        "simplifycfg",
+        "bdce",
+        "loop-bound-split",
+        "mem2reg"
+      ],
+      "best_instruction_passes": [
+        "newgvn",
+        "ipsccp",
+        "redundant-dbg-inst-elim",
+        "simplifycfg",
+        "bdce",
+        "loop-bound-split",
+        "mem2reg",
+        "sroa"
+      ],
+      "graph_score": {
+        "order_score": 4629,
+        "conflict_score": 970,
+        "net_score": 3659,
+        "adjacent_score": 1059,
+        "length": 12,
+        "node_coverage": 0.2903225806451613
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 36,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 60,
+      "pool_unique_paths": 52163,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 42,
+      "rescoring_scale": 0.9020642639206713,
+      "top_chunks": [
+        {
+          "passes": [
+            "loop-bound-split",
+            "mem2reg"
+          ],
+          "value": 1112.6
+        },
+        {
+          "passes": [
+            "simplifycfg",
+            "bdce",
+            "loop-bound-split",
+            "mem2reg"
+          ],
+          "value": 1102.2
+        },
+        {
+          "passes": [
+            "mem2reg"
+          ],
+          "value": 969.4285714285714
+        },
+        {
+          "passes": [
+            "bdce",
+            "loop-bound-split",
+            "mem2reg"
+          ],
+          "value": 806.25
+        },
+        {
+          "passes": [
+            "function-attrs",
+            "sroa"
+          ],
+          "value": 481.5
+        }
+      ],
+      "wave2_pool_available": 52136,
+      "wave2_skipped": false,
+      "crashing_passes": [
+        "instcombine"
+      ],
+      "wave": 1,
+      "wave_candidate_index": 8,
+      "chunk_forest_score": 236.07954545454547,
+      "chunk_forest_new_nodes": 5,
+      "chunk_indexes": [
+        49,
+        15,
+        26,
+        28,
+        21,
+        36,
+        38,
+        46,
+        13,
+        40
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "chstone-v0_gsm",
+      "heuristic": "chunk_forest",
+      "candidate_index": 2,
+      "start_pass": "div-rem-pairs",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_gsm.bc",
+      "baseline_size": 5843,
+      "oz_size": 5224,
+      "oz_delta": 619,
+      "baseline_instruction_count": 1026,
+      "oz_instruction_count": 1081,
+      "oz_instruction_delta": -55,
+      "final_size": 4115,
+      "final_delta": 1728,
+      "best_size": 4027,
+      "best_delta": 1816,
+      "best_prefix_len": 10,
+      "final_instruction_count": 757,
+      "final_instruction_delta": 269,
+      "best_instruction_count": 741,
+      "best_instruction_delta": 285,
+      "best_instruction_prefix_len": 10,
+      "passes": [
+        "div-rem-pairs",
+        "early-cse",
+        "loop-rotate",
+        "memcpyopt",
+        "div-rem-pairs",
+        "libcalls-shrinkwrap",
+        "early-cse",
+        "loop-flatten",
+        "loop-versioning",
+        "mem2reg",
+        "newgvn",
+        "called-value-propagation"
+      ],
+      "best_passes": [
+        "div-rem-pairs",
+        "early-cse",
+        "loop-rotate",
+        "memcpyopt",
+        "div-rem-pairs",
+        "libcalls-shrinkwrap",
+        "early-cse",
+        "loop-flatten",
+        "loop-versioning",
+        "mem2reg"
+      ],
+      "best_instruction_passes": [
+        "div-rem-pairs",
+        "early-cse",
+        "loop-rotate",
+        "memcpyopt",
+        "div-rem-pairs",
+        "libcalls-shrinkwrap",
+        "early-cse",
+        "loop-flatten",
+        "loop-versioning",
+        "mem2reg"
+      ],
+      "graph_score": {
+        "order_score": 33763,
+        "conflict_score": 5694,
+        "net_score": 28069,
+        "adjacent_score": 7484,
+        "length": 12,
+        "node_coverage": 0.7142857142857143
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 31,
+      "chunks_macro": 0,
+      "chunks_single": 14,
+      "paths": 500,
+      "inventory_size": 45,
+      "pool_unique_paths": 53794,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 124,
+      "chunks_remeasured": 35,
+      "rescoring_scale": 0.313917975643909,
+      "top_chunks": [
+        {
+          "passes": [
+            "loop-rotate",
+            "memcpyopt",
+            "div-rem-pairs",
+            "libcalls-shrinkwrap",
+            "early-cse",
+            "loop-flatten",
+            "loop-versioning",
+            "mem2reg"
+          ],
+          "value": 1792.8
+        },
+        {
+          "passes": [
+            "early-cse",
+            "loop-flatten",
+            "loop-versioning",
+            "mem2reg"
+          ],
+          "value": 1591.7777777777778
+        },
+        {
+          "passes": [
+            "loop-flatten",
+            "loop-versioning",
+            "mem2reg"
+          ],
+          "value": 1342.2857142857142
+        },
+        {
+          "passes": [
+            "mem2reg"
+          ],
+          "value": 1218.0
+        },
+        {
+          "passes": [
+            "mem2reg",
+            "alignment-from-assumptions",
+            "vector-combine"
+          ],
+          "value": 1044.0
+        }
+      ],
+      "wave2_pool_available": 53746,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 2,
+      "chunk_forest_score": 3605.391304347826,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        32,
+        33,
+        36,
+        16,
+        17,
+        1,
+        35,
+        9,
+        15,
+        43,
+        40
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 249
+    },
+    {
+      "benchmark": "chstone-v0_jpeg",
+      "heuristic": "chunk_forest",
+      "candidate_index": 43,
+      "start_pass": "inferattrs",
+      "start_weight": 820,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/chstone-v0_jpeg.bc",
+      "baseline_size": 32705,
+      "oz_size": 31663,
+      "oz_delta": 1042,
+      "baseline_instruction_count": 1952,
+      "oz_instruction_count": 1794,
+      "oz_instruction_delta": 158,
+      "final_size": 30591,
+      "final_delta": 2114,
+      "best_size": 30591,
+      "best_delta": 2114,
+      "best_prefix_len": 12,
+      "final_instruction_count": 1562,
+      "final_instruction_delta": 390,
+      "best_instruction_count": 1562,
+      "best_instruction_delta": 390,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "inferattrs",
+        "loop-instsimplify",
+        "mergereturn",
+        "ipsccp",
+        "gvn-hoist",
+        "mem2reg",
+        "nary-reassociate",
+        "loop-rotate",
+        "loop-instsimplify",
+        "mergereturn",
+        "correlated-propagation",
+        "loop-interchange"
+      ],
+      "best_passes": [
+        "inferattrs",
+        "loop-instsimplify",
+        "mergereturn",
+        "ipsccp",
+        "gvn-hoist",
+        "mem2reg",
+        "nary-reassociate",
+        "loop-rotate",
+        "loop-instsimplify",
+        "mergereturn",
+        "correlated-propagation",
+        "loop-interchange"
+      ],
+      "best_instruction_passes": [
+        "inferattrs",
+        "loop-instsimplify",
+        "mergereturn",
+        "ipsccp",
+        "gvn-hoist",
+        "mem2reg",
+        "nary-reassociate",
+        "loop-rotate",
+        "loop-instsimplify",
+        "mergereturn",
+        "correlated-propagation",
+        "loop-interchange"
+      ],
+      "graph_score": {
+        "order_score": 16049,
+        "conflict_score": 6161,
+        "net_score": 9888,
+        "adjacent_score": 5270,
+        "length": 12,
+        "node_coverage": 0.38461538461538464
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 35,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 59,
+      "pool_unique_paths": 68451,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 124,
+      "chunks_remeasured": 38,
+      "rescoring_scale": 0.3847312726260095,
+      "top_chunks": [
+        {
+          "passes": [
+            "inferattrs",
+            "loop-instsimplify",
+            "mergereturn",
+            "ipsccp",
+            "gvn-hoist",
+            "mem2reg"
+          ],
+          "value": 2040.4
+        },
+        {
+          "passes": [
+            "ipsccp",
+            "gvn-hoist",
+            "mem2reg"
+          ],
+          "value": 1647.0
+        },
+        {
+          "passes": [
+            "mergereturn",
+            "ipsccp",
+            "gvn-hoist",
+            "mem2reg"
+          ],
+          "value": 1647.0
+        },
+        {
+          "passes": [
+            "mem2reg"
+          ],
+          "value": 1182.0
+        },
+        {
+          "passes": [
+            "gvn-hoist",
+            "mem2reg"
+          ],
+          "value": 1162.8
+        }
+      ],
+      "wave2_pool_available": 68426,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 18,
+      "chunk_forest_score": -7.436229473191695,
+      "chunk_forest_new_nodes": 2,
+      "chunk_indexes": [
+        36,
+        4,
+        51,
+        49,
+        7,
+        52,
+        54
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 249
+    },
+    {
+      "benchmark": "mibench-v1_jpeg-c",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "called-value-propagation",
+      "start_weight": 346,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_jpeg-c.bc",
+      "baseline_size": 2001,
+      "oz_size": 1703,
+      "oz_delta": 298,
+      "baseline_instruction_count": 388,
+      "oz_instruction_count": 332,
+      "oz_instruction_delta": 56,
+      "final_size": 1591,
+      "final_delta": 410,
+      "best_size": 1591,
+      "best_delta": 410,
+      "best_prefix_len": 6,
+      "final_instruction_count": 318,
+      "final_instruction_delta": 70,
+      "best_instruction_count": 318,
+      "best_instruction_delta": 70,
+      "best_instruction_prefix_len": 6,
+      "passes": [
+        "called-value-propagation",
+        "float2int",
+        "jump-threading",
+        "gvn-sink",
+        "licm",
+        "sroa",
+        "loop-fusion",
+        "sroa",
+        "licm",
+        "loop-fusion",
+        "sroa",
+        "jump-threading"
+      ],
+      "best_passes": [
+        "called-value-propagation",
+        "float2int",
+        "jump-threading",
+        "gvn-sink",
+        "licm",
+        "sroa"
+      ],
+      "best_instruction_passes": [
+        "called-value-propagation",
+        "float2int",
+        "jump-threading",
+        "gvn-sink",
+        "licm",
+        "sroa"
+      ],
+      "graph_score": {
+        "order_score": 15916,
+        "conflict_score": 4844,
+        "net_score": 11072,
+        "adjacent_score": 2768,
+        "length": 12,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 16,
+      "chunks_macro": 0,
+      "chunks_single": 7,
+      "paths": 500,
+      "inventory_size": 23,
+      "pool_unique_paths": 31798,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 23,
+      "rescoring_scale": 0.23933230315801315,
+      "top_chunks": [
+        {
+          "passes": [
+            "gvn-sink",
+            "licm",
+            "loop-fusion",
+            "sroa"
+          ],
+          "value": 561.0909090909091
+        },
+        {
+          "passes": [
+            "licm",
+            "loop-fusion",
+            "sroa"
+          ],
+          "value": 461.8636363636364
+        },
+        {
+          "passes": [
+            "called-value-propagation",
+            "float2int",
+            "jump-threading",
+            "gvn-sink",
+            "licm",
+            "loop-fusion",
+            "sroa"
+          ],
+          "value": 410.0
+        },
+        {
+          "passes": [
+            "loop-fusion",
+            "sroa"
+          ],
+          "value": 317.0769230769231
+        },
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 154.575
+        }
+      ],
+      "wave2_pool_available": 31721,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 2130.6315789473683,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        0,
+        4,
+        18,
+        7,
+        22,
+        21,
+        15,
+        20,
+        13,
+        14,
+        19
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "mibench-v1_lame-newmdct-1",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "attributor",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_lame-newmdct-1.bc",
+      "baseline_size": 1715,
+      "oz_size": 1553,
+      "oz_delta": 162,
+      "baseline_instruction_count": 314,
+      "oz_instruction_count": 267,
+      "oz_instruction_delta": 47,
+      "final_size": 1494,
+      "final_delta": 221,
+      "best_size": 1494,
+      "best_delta": 221,
+      "best_prefix_len": 3,
+      "final_instruction_count": 271,
+      "final_instruction_delta": 43,
+      "best_instruction_count": 271,
+      "best_instruction_delta": 43,
+      "best_instruction_prefix_len": 3,
+      "passes": [
+        "attributor",
+        "newgvn",
+        "attributor"
+      ],
+      "best_passes": [
+        "attributor",
+        "newgvn",
+        "attributor"
+      ],
+      "best_instruction_passes": [
+        "attributor",
+        "newgvn",
+        "attributor"
+      ],
+      "graph_score": {
+        "order_score": 155,
+        "conflict_score": 155,
+        "net_score": 0,
+        "adjacent_score": 155,
+        "length": 3,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 1,
+      "chunks_macro": 0,
+      "chunks_single": 2,
+      "paths": 500,
+      "inventory_size": 3,
+      "pool_unique_paths": 5,
+      "walks_executed": 20014,
+      "wave1_real_evals": 10,
+      "wave2_real_evals": 0,
+      "chunks_remeasured": 3,
+      "rescoring_scale": 0.47397849462365593,
+      "top_chunks": [
+        {
+          "passes": [
+            "newgvn",
+            "attributor"
+          ],
+          "value": 195.4
+        },
+        {
+          "passes": [
+            "attributor"
+          ],
+          "value": 18.8
+        },
+        {
+          "passes": [
+            "newgvn"
+          ],
+          "value": 6.2
+        }
+      ],
+      "wave2_pool_available": 0,
+      "wave2_skipped": true,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 116.25,
+      "chunk_forest_new_nodes": 3,
+      "chunk_indexes": [
+        1,
+        2,
+        0
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 3,
+      "real_evals": 10
+    },
+    {
+      "benchmark": "mibench-v1_lame-psymodel",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "simplifycfg",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_lame-psymodel.bc",
+      "baseline_size": 6621,
+      "oz_size": 4926,
+      "oz_delta": 1695,
+      "baseline_instruction_count": 1084,
+      "oz_instruction_count": 829,
+      "oz_instruction_delta": 255,
+      "final_size": 4990,
+      "final_delta": 1631,
+      "best_size": 4982,
+      "best_delta": 1639,
+      "best_prefix_len": 5,
+      "final_instruction_count": 844,
+      "final_instruction_delta": 240,
+      "best_instruction_count": 840,
+      "best_instruction_delta": 244,
+      "best_instruction_prefix_len": 5,
+      "passes": [
+        "simplifycfg",
+        "argpromotion",
+        "sroa",
+        "globaldce",
+        "gvn-sink",
+        "simplifycfg",
+        "sroa",
+        "gvn-sink",
+        "simplifycfg",
+        "globaldce",
+        "gvn-sink",
+        "simplifycfg"
+      ],
+      "best_passes": [
+        "simplifycfg",
+        "argpromotion",
+        "sroa",
+        "globaldce",
+        "gvn-sink"
+      ],
+      "best_instruction_passes": [
+        "simplifycfg",
+        "argpromotion",
+        "sroa",
+        "globaldce",
+        "gvn-sink"
+      ],
+      "graph_score": {
+        "order_score": 34595,
+        "conflict_score": 16830,
+        "net_score": 17765,
+        "adjacent_score": 7480,
+        "length": 12,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 10,
+      "chunks_macro": 0,
+      "chunks_single": 5,
+      "paths": 500,
+      "inventory_size": 15,
+      "pool_unique_paths": 14296,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 124,
+      "chunks_remeasured": 15,
+      "rescoring_scale": 0.3408207925590309,
+      "top_chunks": [
+        {
+          "passes": [
+            "argpromotion",
+            "sroa",
+            "globaldce",
+            "gvn-sink"
+          ],
+          "value": 1299.4117647058824
+        },
+        {
+          "passes": [
+            "argpromotion",
+            "sroa",
+            "globaldce"
+          ],
+          "value": 1264.1176470588234
+        },
+        {
+          "passes": [
+            "argpromotion",
+            "sroa",
+            "globaldce",
+            "gvn-sink",
+            "simplifycfg"
+          ],
+          "value": 1110.8235294117646
+        },
+        {
+          "passes": [
+            "argpromotion",
+            "sroa"
+          ],
+          "value": 708.4615384615385
+        },
+        {
+          "passes": [
+            "sroa",
+            "globaldce",
+            "gvn-sink"
+          ],
+          "value": 121.0
+        }
+      ],
+      "wave2_pool_available": 14246,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 5476.4285714285725,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        13,
+        0,
+        7,
+        8,
+        9,
+        14,
+        12,
+        6,
+        11,
+        4,
+        5
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 249
+    },
+    {
+      "benchmark": "mibench-v1_lame-takehiro-1",
+      "heuristic": "chunk_forest",
+      "candidate_index": 4,
+      "start_pass": "simple-loop-unswitch",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_lame-takehiro-1.bc",
+      "baseline_size": 1449,
+      "oz_size": 1236,
+      "oz_delta": 213,
+      "baseline_instruction_count": 256,
+      "oz_instruction_count": 219,
+      "oz_instruction_delta": 37,
+      "final_size": 1196,
+      "final_delta": 253,
+      "best_size": 1180,
+      "best_delta": 269,
+      "best_prefix_len": 8,
+      "final_instruction_count": 205,
+      "final_instruction_delta": 51,
+      "best_instruction_count": 205,
+      "best_instruction_delta": 51,
+      "best_instruction_prefix_len": 11,
+      "passes": [
+        "simple-loop-unswitch",
+        "speculative-execution",
+        "instcombine",
+        "speculative-execution",
+        "tailcallelim",
+        "instcombine",
+        "simple-loop-unswitch",
+        "sroa",
+        "speculative-execution",
+        "tailcallelim",
+        "instcombine",
+        "simple-loop-unswitch"
+      ],
+      "best_passes": [
+        "simple-loop-unswitch",
+        "speculative-execution",
+        "instcombine",
+        "speculative-execution",
+        "tailcallelim",
+        "instcombine",
+        "simple-loop-unswitch",
+        "sroa"
+      ],
+      "best_instruction_passes": [
+        "simple-loop-unswitch",
+        "speculative-execution",
+        "instcombine",
+        "speculative-execution",
+        "tailcallelim",
+        "instcombine",
+        "simple-loop-unswitch",
+        "sroa",
+        "speculative-execution",
+        "tailcallelim",
+        "instcombine"
+      ],
+      "graph_score": {
+        "order_score": 7056,
+        "conflict_score": 6384,
+        "net_score": 672,
+        "adjacent_score": 1680,
+        "length": 12,
+        "node_coverage": 0.8333333333333334
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 16,
+      "chunks_macro": 0,
+      "chunks_single": 6,
+      "paths": 500,
+      "inventory_size": 22,
+      "pool_unique_paths": 33505,
+      "walks_executed": 100000,
+      "wave1_real_evals": 122,
+      "wave2_real_evals": 128,
+      "chunks_remeasured": 22,
+      "rescoring_scale": 0.19746449888495346,
+      "top_chunks": [
+        {
+          "passes": [
+            "speculative-execution",
+            "tailcallelim",
+            "instcombine",
+            "simple-loop-unswitch",
+            "speculative-execution",
+            "loop-rotate",
+            "sroa"
+          ],
+          "value": 216.0
+        },
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 181.75
+        },
+        {
+          "passes": [
+            "simple-loop-unswitch",
+            "speculative-execution",
+            "loop-rotate",
+            "sroa"
+          ],
+          "value": 133.33333333333334
+        },
+        {
+          "passes": [
+            "loop-rotate",
+            "sroa"
+          ],
+          "value": 126.54545454545455
+        },
+        {
+          "passes": [
+            "speculative-execution",
+            "loop-rotate",
+            "sroa"
+          ],
+          "value": 43.2
+        }
+      ],
+      "wave2_pool_available": 33471,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 4,
+      "chunk_forest_score": 231.0,
+      "chunk_forest_new_nodes": 7,
+      "chunk_indexes": [
+        4,
+        16,
+        11,
+        20,
+        9,
+        10,
+        14
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "mibench-v1_mad-1",
+      "heuristic": "chunk_forest",
+      "candidate_index": 38,
+      "start_pass": "float2int",
+      "start_weight": 191,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_mad-1.bc",
+      "baseline_size": 1354,
+      "oz_size": 1496,
+      "oz_delta": -142,
+      "baseline_instruction_count": 258,
+      "oz_instruction_count": 285,
+      "oz_instruction_delta": -27,
+      "final_size": 1096,
+      "final_delta": 258,
+      "best_size": 1096,
+      "best_delta": 258,
+      "best_prefix_len": 7,
+      "final_instruction_count": 202,
+      "final_instruction_delta": 56,
+      "best_instruction_count": 202,
+      "best_instruction_delta": 56,
+      "best_instruction_prefix_len": 7,
+      "passes": [
+        "float2int",
+        "hotcoldsplit",
+        "float2int",
+        "hotcoldsplit",
+        "loop-deletion",
+        "sroa",
+        "loop-rotate",
+        "hotcoldsplit",
+        "loop-deletion",
+        "sroa",
+        "loop-rotate",
+        "sroa"
+      ],
+      "best_passes": [
+        "float2int",
+        "hotcoldsplit",
+        "float2int",
+        "hotcoldsplit",
+        "loop-deletion",
+        "sroa",
+        "loop-rotate"
+      ],
+      "best_instruction_passes": [
+        "float2int",
+        "hotcoldsplit",
+        "float2int",
+        "hotcoldsplit",
+        "loop-deletion",
+        "sroa",
+        "loop-rotate"
+      ],
+      "graph_score": {
+        "order_score": 9168,
+        "conflict_score": 1719,
+        "net_score": 7449,
+        "adjacent_score": 1528,
+        "length": 12,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 10,
+      "chunks_macro": 0,
+      "chunks_single": 5,
+      "paths": 500,
+      "inventory_size": 15,
+      "pool_unique_paths": 14193,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 15,
+      "rescoring_scale": 0.08835851558364648,
+      "top_chunks": [
+        {
+          "passes": [
+            "sroa",
+            "loop-rotate"
+          ],
+          "value": 152.7027027027027
+        },
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 100.44444444444444
+        },
+        {
+          "passes": [
+            "float2int"
+          ],
+          "value": 0.0
+        },
+        {
+          "passes": [
+            "float2int",
+            "hotcoldsplit"
+          ],
+          "value": 0.0
+        },
+        {
+          "passes": [
+            "float2int",
+            "hotcoldsplit",
+            "loop-deletion"
+          ],
+          "value": 0.0
+        }
+      ],
+      "wave2_pool_available": 14156,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 7.494804872390073e-07,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        10,
+        11,
+        0,
+        3,
+        4,
+        7,
+        9,
+        14
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "mibench-v1_susan-e-2",
+      "heuristic": "chunk_forest",
+      "candidate_index": 120,
+      "start_pass": "float2int",
+      "start_weight": 1317,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/mibench-v1_susan-e-2.bc",
+      "baseline_size": 4163,
+      "oz_size": 3198,
+      "oz_delta": 965,
+      "baseline_instruction_count": 1023,
+      "oz_instruction_count": 771,
+      "oz_instruction_delta": 252,
+      "final_size": 2724,
+      "final_delta": 1439,
+      "best_size": 2724,
+      "best_delta": 1439,
+      "best_prefix_len": 11,
+      "final_instruction_count": 666,
+      "final_instruction_delta": 357,
+      "best_instruction_count": 666,
+      "best_instruction_delta": 357,
+      "best_instruction_prefix_len": 11,
+      "passes": [
+        "float2int",
+        "instcombine",
+        "newgvn",
+        "callsite-splitting",
+        "bdce",
+        "mldst-motion",
+        "hotcoldsplit",
+        "reassociate",
+        "instcombine",
+        "hotcoldsplit",
+        "reassociate",
+        "mldst-motion"
+      ],
+      "best_passes": [
+        "float2int",
+        "instcombine",
+        "newgvn",
+        "callsite-splitting",
+        "bdce",
+        "mldst-motion",
+        "hotcoldsplit",
+        "reassociate",
+        "instcombine",
+        "hotcoldsplit",
+        "reassociate"
+      ],
+      "best_instruction_passes": [
+        "float2int",
+        "instcombine",
+        "newgvn",
+        "callsite-splitting",
+        "bdce",
+        "mldst-motion",
+        "hotcoldsplit",
+        "reassociate",
+        "instcombine",
+        "hotcoldsplit",
+        "reassociate"
+      ],
+      "graph_score": {
+        "order_score": 67167,
+        "conflict_score": 14487,
+        "net_score": 52680,
+        "adjacent_score": 11853,
+        "length": 12,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 19,
+      "chunks_macro": 0,
+      "chunks_single": 8,
+      "paths": 500,
+      "inventory_size": 27,
+      "pool_unique_paths": 39957,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 23,
+      "rescoring_scale": 0.12186231415512269,
+      "top_chunks": [
+        {
+          "passes": [
+            "newgvn",
+            "callsite-splitting"
+          ],
+          "value": 739.3846153846154
+        },
+        {
+          "passes": [
+            "newgvn",
+            "callsite-splitting",
+            "bdce"
+          ],
+          "value": 728.1818181818181
+        },
+        {
+          "passes": [
+            "newgvn",
+            "callsite-splitting",
+            "bdce",
+            "mldst-motion"
+          ],
+          "value": 640.8
+        },
+        {
+          "passes": [
+            "float2int",
+            "instcombine"
+          ],
+          "value": 382.0
+        },
+        {
+          "passes": [
+            "instcombine"
+          ],
+          "value": 382.0
+        }
+      ],
+      "wave2_pool_available": 39879,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 42,
+      "chunk_forest_score": -11.98389729152027,
+      "chunk_forest_new_nodes": 3,
+      "chunk_indexes": [
+        21,
+        7,
+        12,
+        13,
+        4,
+        2,
+        23,
+        10,
+        14
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "npb-v0_122",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "sroa",
+      "start_weight": 142,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/npb-v0_122.bc",
+      "baseline_size": 845,
+      "oz_size": 576,
+      "oz_delta": 269,
+      "baseline_instruction_count": 148,
+      "oz_instruction_count": 96,
+      "oz_instruction_delta": 52,
+      "final_size": 575,
+      "final_delta": 270,
+      "best_size": 575,
+      "best_delta": 270,
+      "best_prefix_len": 1,
+      "final_instruction_count": 94,
+      "final_instruction_delta": 54,
+      "best_instruction_count": 94,
+      "best_instruction_delta": 54,
+      "best_instruction_prefix_len": 1,
+      "passes": [
+        "sroa"
+      ],
+      "best_passes": [
+        "sroa"
+      ],
+      "best_instruction_passes": [
+        "sroa"
+      ],
+      "graph_score": {
+        "order_score": 0,
+        "conflict_score": 0,
+        "net_score": 0,
+        "adjacent_score": 0,
+        "length": 1,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 0,
+      "chunks_macro": 1,
+      "chunks_single": 0,
+      "paths": 500,
+      "inventory_size": 1,
+      "pool_unique_paths": 1,
+      "walks_executed": 20001,
+      "wave1_real_evals": 1,
+      "wave2_real_evals": 0,
+      "chunks_remeasured": 0,
+      "rescoring_scale": 0.0,
+      "top_chunks": [
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 0.0
+        }
+      ],
+      "wave2_pool_available": 0,
+      "wave2_skipped": true,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 0.0,
+      "chunk_forest_new_nodes": 1,
+      "chunk_indexes": [
+        0
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 1,
+      "real_evals": 1
+    },
+    {
+      "benchmark": "npb-v0_3",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "div-rem-pairs",
+      "start_weight": 66,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/npb-v0_3.bc",
+      "baseline_size": 1885,
+      "oz_size": 1683,
+      "oz_delta": 202,
+      "baseline_instruction_count": 408,
+      "oz_instruction_count": 372,
+      "oz_instruction_delta": 36,
+      "final_size": 1659,
+      "final_delta": 226,
+      "best_size": 1659,
+      "best_delta": 226,
+      "best_prefix_len": 3,
+      "final_instruction_count": 376,
+      "final_instruction_delta": 32,
+      "best_instruction_count": 376,
+      "best_instruction_delta": 32,
+      "best_instruction_prefix_len": 3,
+      "passes": [
+        "div-rem-pairs",
+        "sroa",
+        "slp-vectorizer",
+        "slp-vectorizer",
+        "sroa",
+        "slp-vectorizer"
+      ],
+      "best_passes": [
+        "div-rem-pairs",
+        "sroa",
+        "slp-vectorizer"
+      ],
+      "best_instruction_passes": [
+        "div-rem-pairs",
+        "sroa",
+        "slp-vectorizer"
+      ],
+      "graph_score": {
+        "order_score": 594,
+        "conflict_score": 132,
+        "net_score": 462,
+        "adjacent_score": 198,
+        "length": 6,
+        "node_coverage": 1.0
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 3,
+      "chunks_macro": 0,
+      "chunks_single": 3,
+      "paths": 500,
+      "inventory_size": 6,
+      "pool_unique_paths": 385,
+      "walks_executed": 91640,
+      "wave1_real_evals": 124,
+      "wave2_real_evals": 126,
+      "chunks_remeasured": 6,
+      "rescoring_scale": 0.5707070707070707,
+      "top_chunks": [
+        {
+          "passes": [
+            "div-rem-pairs",
+            "sroa",
+            "slp-vectorizer"
+          ],
+          "value": 124.175
+        },
+        {
+          "passes": [
+            "div-rem-pairs",
+            "sroa"
+          ],
+          "value": 77.5
+        },
+        {
+          "passes": [
+            "sroa",
+            "slp-vectorizer"
+          ],
+          "value": 19.55
+        },
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 2.5
+        },
+        {
+          "passes": [
+            "slp-vectorizer"
+          ],
+          "value": 2.275
+        }
+      ],
+      "wave2_pool_available": 305,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 158.39999999999998,
+      "chunk_forest_new_nodes": 6,
+      "chunk_indexes": [
+        3,
+        0,
+        1,
+        4,
+        5,
+        2
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 6,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "npb-v0_4",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "gvn-hoist",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/npb-v0_4.bc",
+      "baseline_size": 3477,
+      "oz_size": 2481,
+      "oz_delta": 996,
+      "baseline_instruction_count": 798,
+      "oz_instruction_count": 571,
+      "oz_instruction_delta": 227,
+      "final_size": 2393,
+      "final_delta": 1084,
+      "best_size": 2393,
+      "best_delta": 1084,
+      "best_prefix_len": 9,
+      "final_instruction_count": 559,
+      "final_instruction_delta": 239,
+      "best_instruction_count": 559,
+      "best_instruction_delta": 239,
+      "best_instruction_prefix_len": 9,
+      "passes": [
+        "gvn-hoist",
+        "newgvn",
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "mergeicmps",
+        "gvn-hoist",
+        "newgvn",
+        "gvn-hoist",
+        "sroa",
+        "redundant-dbg-inst-elim",
+        "mergeicmps",
+        "gvn-hoist"
+      ],
+      "best_passes": [
+        "gvn-hoist",
+        "newgvn",
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "mergeicmps",
+        "gvn-hoist",
+        "newgvn",
+        "gvn-hoist",
+        "sroa"
+      ],
+      "best_instruction_passes": [
+        "gvn-hoist",
+        "newgvn",
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "mergeicmps",
+        "gvn-hoist",
+        "newgvn",
+        "gvn-hoist",
+        "sroa"
+      ],
+      "graph_score": {
+        "order_score": 13648,
+        "conflict_score": 22033,
+        "net_score": -8385,
+        "adjacent_score": 4515,
+        "length": 12,
+        "node_coverage": 0.5
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 26,
+      "chunks_macro": 0,
+      "chunks_single": 10,
+      "paths": 500,
+      "inventory_size": 36,
+      "pool_unique_paths": 44486,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 36,
+      "rescoring_scale": 0.4956957721550841,
+      "top_chunks": [
+        {
+          "passes": [
+            "instsimplify",
+            "simplifycfg",
+            "loop-fusion",
+            "sroa"
+          ],
+          "value": 998.0
+        },
+        {
+          "passes": [
+            "loop-fusion",
+            "sroa",
+            "mergeicmps"
+          ],
+          "value": 998.0
+        },
+        {
+          "passes": [
+            "instsimplify",
+            "simplifycfg",
+            "loop-fusion",
+            "sroa",
+            "mergeicmps",
+            "loop-flatten",
+            "aggressive-instcombine"
+          ],
+          "value": 939.2727272727273
+        },
+        {
+          "passes": [
+            "sroa",
+            "mergeicmps"
+          ],
+          "value": 740.5
+        },
+        {
+          "passes": [
+            "sroa"
+          ],
+          "value": 616.6
+        }
+      ],
+      "wave2_pool_available": 44442,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 6806.6,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        0,
+        30,
+        29,
+        26,
+        1,
+        2,
+        28,
+        27,
+        6,
+        7,
+        4
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "opencv-v0_100",
+      "heuristic": "chunk_forest",
+      "candidate_index": 46,
+      "start_pass": "float2int",
+      "start_weight": 73,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_100.bc",
+      "baseline_size": 41189,
+      "oz_size": 39466,
+      "oz_delta": 1723,
+      "baseline_instruction_count": 9180,
+      "oz_instruction_count": 8688,
+      "oz_instruction_delta": 492,
+      "final_size": 39713,
+      "final_delta": 1476,
+      "best_size": 39713,
+      "best_delta": 1476,
+      "best_prefix_len": 12,
+      "final_instruction_count": 8559,
+      "final_instruction_delta": 621,
+      "best_instruction_count": 8559,
+      "best_instruction_delta": 621,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "float2int",
+        "loop-interchange",
+        "sroa",
+        "loop-rotate",
+        "gvn-sink",
+        "gvn",
+        "correlated-propagation",
+        "gvn-sink",
+        "mergereturn",
+        "sink",
+        "inline",
+        "iroutliner"
+      ],
+      "best_passes": [
+        "float2int",
+        "loop-interchange",
+        "sroa",
+        "loop-rotate",
+        "gvn-sink",
+        "gvn",
+        "correlated-propagation",
+        "gvn-sink",
+        "mergereturn",
+        "sink",
+        "inline",
+        "iroutliner"
+      ],
+      "best_instruction_passes": [
+        "float2int",
+        "loop-interchange",
+        "sroa",
+        "loop-rotate",
+        "gvn-sink",
+        "gvn",
+        "correlated-propagation",
+        "gvn-sink",
+        "mergereturn",
+        "sink",
+        "inline",
+        "iroutliner"
+      ],
+      "graph_score": {
+        "order_score": 2287,
+        "conflict_score": 350,
+        "net_score": 1937,
+        "adjacent_score": 691,
+        "length": 12,
+        "node_coverage": 0.2558139534883721
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 42,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 66,
+      "pool_unique_paths": 74037,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 47,
+      "rescoring_scale": 1.1828327893190163,
+      "top_chunks": [
+        {
+          "passes": [
+            "correlated-propagation",
+            "gvn-sink",
+            "mergereturn"
+          ],
+          "value": 1007.5
+        },
+        {
+          "passes": [
+            "gvn",
+            "lower-expect",
+            "correlated-propagation"
+          ],
+          "value": 916.0
+        },
+        {
+          "passes": [
+            "elim-avail-extern",
+            "correlated-propagation"
+          ],
+          "value": 768.0
+        },
+        {
+          "passes": [
+            "lower-expect",
+            "correlated-propagation"
+          ],
+          "value": 665.1428571428571
+        },
+        {
+          "passes": [
+            "elim-avail-extern",
+            "correlated-propagation",
+            "sink"
+          ],
+          "value": 635.2
+        }
+      ],
+      "wave2_pool_available": 73999,
+      "wave2_skipped": false,
+      "crashing_passes": [
+        "instcombine"
+      ],
+      "wave": 2,
+      "wave_candidate_index": 8,
+      "chunk_forest_score": 16.939385024268752,
+      "chunk_forest_new_nodes": 3,
+      "chunk_indexes": [
+        56,
+        29,
+        44,
+        43,
+        25,
+        48,
+        54,
+        37
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "opencv-v0_150",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "argpromotion",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_150.bc",
+      "baseline_size": 5989,
+      "oz_size": 5957,
+      "oz_delta": 32,
+      "baseline_instruction_count": 1189,
+      "oz_instruction_count": 1177,
+      "oz_instruction_delta": 12,
+      "final_size": 5957,
+      "final_delta": 32,
+      "best_size": 5957,
+      "best_delta": 32,
+      "best_prefix_len": 4,
+      "final_instruction_count": 1178,
+      "final_instruction_delta": 11,
+      "best_instruction_count": 1178,
+      "best_instruction_delta": 11,
+      "best_instruction_prefix_len": 9,
+      "passes": [
+        "argpromotion",
+        "correlated-propagation",
+        "loop-vectorize",
+        "newgvn",
+        "dse",
+        "called-value-propagation",
+        "instcombine",
+        "argpromotion",
+        "correlated-propagation",
+        "bdce",
+        "newgvn",
+        "dse"
+      ],
+      "best_passes": [
+        "argpromotion",
+        "correlated-propagation",
+        "loop-vectorize",
+        "newgvn"
+      ],
+      "best_instruction_passes": [
+        "argpromotion",
+        "correlated-propagation",
+        "loop-vectorize",
+        "newgvn",
+        "dse",
+        "called-value-propagation",
+        "instcombine",
+        "argpromotion",
+        "correlated-propagation"
+      ],
+      "graph_score": {
+        "order_score": 153,
+        "conflict_score": 81,
+        "net_score": 72,
+        "adjacent_score": 72,
+        "length": 12,
+        "node_coverage": 0.6666666666666666
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 23,
+      "chunks_macro": 1,
+      "chunks_single": 11,
+      "paths": 500,
+      "inventory_size": 35,
+      "pool_unique_paths": 53087,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 33,
+      "rescoring_scale": 0.5308066083576287,
+      "top_chunks": [
+        {
+          "passes": [
+            "constmerge",
+            "bdce",
+            "loop-vectorize",
+            "newgvn"
+          ],
+          "value": 32.0
+        },
+        {
+          "passes": [
+            "constraint-elimination",
+            "constmerge",
+            "bdce",
+            "loop-vectorize",
+            "newgvn",
+            "dse"
+          ],
+          "value": 32.0
+        },
+        {
+          "passes": [
+            "loop-vectorize",
+            "newgvn"
+          ],
+          "value": 26.0
+        },
+        {
+          "passes": [
+            "bdce",
+            "loop-vectorize",
+            "newgvn"
+          ],
+          "value": 19.2
+        },
+        {
+          "passes": [
+            "bdce",
+            "loop-vectorize",
+            "newgvn",
+            "dse"
+          ],
+          "value": 16.0
+        }
+      ],
+      "wave2_pool_available": 53040,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 61.90243902439025,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        24,
+        0,
+        32,
+        16,
+        30,
+        26,
+        31,
+        14,
+        29,
+        25,
+        34,
+        22
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "opencv-v0_3",
+      "heuristic": "chunk_forest",
+      "candidate_index": 99,
+      "start_pass": "iroutliner",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_3.bc",
+      "baseline_size": 14938,
+      "oz_size": 14305,
+      "oz_delta": 633,
+      "baseline_instruction_count": 3424,
+      "oz_instruction_count": 3246,
+      "oz_instruction_delta": 178,
+      "final_size": 13804,
+      "final_delta": 1134,
+      "best_size": 13804,
+      "best_delta": 1134,
+      "best_prefix_len": 12,
+      "final_instruction_count": 3093,
+      "final_instruction_delta": 331,
+      "best_instruction_count": 3093,
+      "best_instruction_delta": 331,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "constmerge",
+        "instcombine",
+        "chr",
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "attributor",
+        "gvn-hoist",
+        "separate-const-offset-from-gep"
+      ],
+      "best_passes": [
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "constmerge",
+        "instcombine",
+        "chr",
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "attributor",
+        "gvn-hoist",
+        "separate-const-offset-from-gep"
+      ],
+      "best_instruction_passes": [
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "constmerge",
+        "instcombine",
+        "chr",
+        "iroutliner",
+        "constmerge",
+        "instcombine",
+        "attributor",
+        "gvn-hoist",
+        "separate-const-offset-from-gep"
+      ],
+      "graph_score": {
+        "order_score": 8351,
+        "conflict_score": 5752,
+        "net_score": 2599,
+        "adjacent_score": 3137,
+        "length": 12,
+        "node_coverage": 0.4375
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 31,
+      "chunks_macro": 0,
+      "chunks_single": 16,
+      "paths": 500,
+      "inventory_size": 47,
+      "pool_unique_paths": 56897,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 124,
+      "chunks_remeasured": 38,
+      "rescoring_scale": 0.1951870726596123,
+      "top_chunks": [
+        {
+          "passes": [
+            "iroutliner",
+            "constmerge",
+            "instcombine"
+          ],
+          "value": 653.84375
+        },
+        {
+          "passes": [
+            "iroutliner"
+          ],
+          "value": 459.09090909090907
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "constmerge"
+          ],
+          "value": 373.2608695652174
+        },
+        {
+          "passes": [
+            "loop-instsimplify",
+            "loop-fusion",
+            "attributor",
+            "gvn-hoist"
+          ],
+          "value": 188.7
+        },
+        {
+          "passes": [
+            "instcombine"
+          ],
+          "value": 157.44444444444446
+        }
+      ],
+      "wave2_pool_available": 56850,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 52,
+      "chunk_forest_score": -12.51567761196899,
+      "chunk_forest_new_nodes": 3,
+      "chunk_indexes": [
+        8,
+        7,
+        33,
+        34,
+        5,
+        9,
+        37,
+        10,
+        46
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 249
+    },
+    {
+      "benchmark": "opencv-v0_4",
+      "heuristic": "chunk_forest",
+      "candidate_index": 9,
+      "start_pass": "div-rem-pairs",
+      "start_weight": 165,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_4.bc",
+      "baseline_size": 18382,
+      "oz_size": 19266,
+      "oz_delta": -884,
+      "baseline_instruction_count": 3446,
+      "oz_instruction_count": 3602,
+      "oz_instruction_delta": -156,
+      "final_size": 17914,
+      "final_delta": 468,
+      "best_size": 17914,
+      "best_delta": 468,
+      "best_prefix_len": 12,
+      "final_instruction_count": 3352,
+      "final_instruction_delta": 94,
+      "best_instruction_count": 3352,
+      "best_instruction_delta": 94,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "div-rem-pairs",
+        "simple-loop-unswitch",
+        "consthoist",
+        "vector-combine",
+        "ipsccp",
+        "gvn-sink",
+        "sccp",
+        "early-cse",
+        "infer-address-spaces",
+        "speculative-execution",
+        "newgvn",
+        "mergereturn"
+      ],
+      "best_passes": [
+        "div-rem-pairs",
+        "simple-loop-unswitch",
+        "consthoist",
+        "vector-combine",
+        "ipsccp",
+        "gvn-sink",
+        "sccp",
+        "early-cse",
+        "infer-address-spaces",
+        "speculative-execution",
+        "newgvn",
+        "mergereturn"
+      ],
+      "best_instruction_passes": [
+        "div-rem-pairs",
+        "simple-loop-unswitch",
+        "consthoist",
+        "vector-combine",
+        "ipsccp",
+        "gvn-sink",
+        "sccp",
+        "early-cse",
+        "infer-address-spaces",
+        "speculative-execution",
+        "newgvn",
+        "mergereturn"
+      ],
+      "graph_score": {
+        "order_score": 3323,
+        "conflict_score": 121,
+        "net_score": 3202,
+        "adjacent_score": 1254,
+        "length": 12,
+        "node_coverage": 0.35294117647058826
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 42,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 66,
+      "pool_unique_paths": 59831,
+      "walks_executed": 100000,
+      "wave1_real_evals": 124,
+      "wave2_real_evals": 126,
+      "chunks_remeasured": 47,
+      "rescoring_scale": 0.28661422209809306,
+      "top_chunks": [
+        {
+          "passes": [
+            "early-cse",
+            "infer-address-spaces",
+            "speculative-execution",
+            "newgvn"
+          ],
+          "value": 224.0
+        },
+        {
+          "passes": [
+            "early-cse"
+          ],
+          "value": 192.0
+        },
+        {
+          "passes": [
+            "early-cse",
+            "infer-address-spaces"
+          ],
+          "value": 192.0
+        },
+        {
+          "passes": [
+            "div-rem-pairs",
+            "simple-loop-unswitch",
+            "consthoist",
+            "vector-combine",
+            "ipsccp",
+            "gvn-sink"
+          ],
+          "value": 160.0
+        },
+        {
+          "passes": [
+            "vector-combine",
+            "ipsccp",
+            "gvn-sink"
+          ],
+          "value": 137.14285714285714
+        }
+      ],
+      "wave2_pool_available": 59802,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 9,
+      "chunk_forest_score": 235.375,
+      "chunk_forest_new_nodes": 1,
+      "chunk_indexes": [
+        5,
+        10,
+        0,
+        54,
+        15,
+        35
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "opencv-v0_442",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "instcombine",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_442.bc",
+      "baseline_size": 10763,
+      "oz_size": 10608,
+      "oz_delta": 155,
+      "baseline_instruction_count": 2532,
+      "oz_instruction_count": 2495,
+      "oz_instruction_delta": 37,
+      "final_size": 10716,
+      "final_delta": 47,
+      "best_size": 10636,
+      "best_delta": 127,
+      "best_prefix_len": 6,
+      "final_instruction_count": 2491,
+      "final_instruction_delta": 41,
+      "best_instruction_count": 2476,
+      "best_instruction_delta": 56,
+      "best_instruction_prefix_len": 6,
+      "passes": [
+        "instcombine",
+        "gvn-hoist",
+        "mergereturn",
+        "globalopt",
+        "speculative-execution",
+        "gvn-sink",
+        "instcombine",
+        "mergereturn",
+        "speculative-execution",
+        "iroutliner",
+        "globalopt",
+        "speculative-execution"
+      ],
+      "best_passes": [
+        "instcombine",
+        "gvn-hoist",
+        "mergereturn",
+        "globalopt",
+        "speculative-execution",
+        "gvn-sink"
+      ],
+      "best_instruction_passes": [
+        "instcombine",
+        "gvn-hoist",
+        "mergereturn",
+        "globalopt",
+        "speculative-execution",
+        "gvn-sink"
+      ],
+      "graph_score": {
+        "order_score": 1297,
+        "conflict_score": 648,
+        "net_score": 649,
+        "adjacent_score": 412,
+        "length": 12,
+        "node_coverage": 0.6363636363636364
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 26,
+      "chunks_macro": 1,
+      "chunks_single": 10,
+      "paths": 500,
+      "inventory_size": 37,
+      "pool_unique_paths": 49141,
+      "walks_executed": 100000,
+      "wave1_real_evals": 124,
+      "wave2_real_evals": 126,
+      "chunks_remeasured": 33,
+      "rescoring_scale": 0.162503368007244,
+      "top_chunks": [
+        {
+          "passes": [
+            "iroutliner",
+            "gvn-hoist",
+            "simplifycfg"
+          ],
+          "value": 60.666666666666664
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "gvn-hoist",
+            "simplifycfg",
+            "mergereturn"
+          ],
+          "value": 60.3
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "gvn-hoist"
+          ],
+          "value": 54.23076923076923
+        },
+        {
+          "passes": [
+            "gvn-hoist"
+          ],
+          "value": 20.333333333333332
+        },
+        {
+          "passes": [
+            "mergereturn",
+            "globalopt",
+            "speculative-execution"
+          ],
+          "value": 20.307692307692307
+        }
+      ],
+      "wave2_pool_available": 49088,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 358.13186813186815,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        34,
+        28,
+        8,
+        9,
+        33,
+        16,
+        30,
+        32,
+        29,
+        27,
+        0
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "opencv-v0_50",
+      "heuristic": "chunk_forest",
+      "candidate_index": 1,
+      "start_pass": "dce",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/opencv-v0_50.bc",
+      "baseline_size": 10974,
+      "oz_size": 11006,
+      "oz_delta": -32,
+      "baseline_instruction_count": 1751,
+      "oz_instruction_count": 1757,
+      "oz_instruction_delta": -6,
+      "final_size": 10990,
+      "final_delta": -16,
+      "best_size": 10974,
+      "best_delta": 0,
+      "best_prefix_len": 0,
+      "final_instruction_count": 1754,
+      "final_instruction_delta": -3,
+      "best_instruction_count": 1751,
+      "best_instruction_delta": 0,
+      "best_instruction_prefix_len": 0,
+      "passes": [
+        "dce",
+        "lower-expect",
+        "simple-loop-unswitch",
+        "instcombine",
+        "consthoist",
+        "simple-loop-unswitch",
+        "loop-unroll-and-jam",
+        "instcombine",
+        "loop-unroll-and-jam",
+        "slp-vectorizer",
+        "jump-threading",
+        "consthoist"
+      ],
+      "best_passes": [],
+      "best_instruction_passes": [],
+      "graph_score": {
+        "order_score": 211,
+        "conflict_score": 128,
+        "net_score": 83,
+        "adjacent_score": 59,
+        "length": 12,
+        "node_coverage": 0.4444444444444444
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 27,
+      "chunks_macro": 0,
+      "chunks_single": 18,
+      "paths": 500,
+      "inventory_size": 45,
+      "pool_unique_paths": 68989,
+      "walks_executed": 100000,
+      "wave1_real_evals": 124,
+      "wave2_real_evals": 126,
+      "chunks_remeasured": 39,
+      "rescoring_scale": 0.010847457627118645,
+      "top_chunks": [
+        {
+          "passes": [
+            "newgvn"
+          ],
+          "value": 3.2
+        },
+        {
+          "passes": [
+            "consthoist",
+            "dce",
+            "lower-expect",
+            "simple-loop-unswitch",
+            "loop-unroll-and-jam",
+            "instcombine"
+          ],
+          "value": 0.08677966101694916
+        },
+        {
+          "passes": [
+            "load-store-vectorizer"
+          ],
+          "value": 0.03254237288135593
+        },
+        {
+          "passes": [
+            "constmerge"
+          ],
+          "value": 0.010847457627118645
+        },
+        {
+          "passes": [
+            "constmerge",
+            "load-store-vectorizer",
+            "newgvn"
+          ],
+          "value": 0.010847457627118645
+        }
+      ],
+      "wave2_pool_available": 68920,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 1,
+      "chunk_forest_score": 62.03092783505154,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        30,
+        5,
+        9,
+        31,
+        27,
+        34,
+        12,
+        8,
+        32,
+        29,
+        28,
+        2
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_1500",
+      "heuristic": "chunk_forest",
+      "candidate_index": 38,
+      "start_pass": "early-cse",
+      "start_weight": 560,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_1500.bc",
+      "baseline_size": 20425,
+      "oz_size": 19258,
+      "oz_delta": 1167,
+      "baseline_instruction_count": 4407,
+      "oz_instruction_count": 4164,
+      "oz_instruction_delta": 243,
+      "final_size": 19525,
+      "final_delta": 900,
+      "best_size": 19525,
+      "best_delta": 900,
+      "best_prefix_len": 11,
+      "final_instruction_count": 4201,
+      "final_instruction_delta": 206,
+      "best_instruction_count": 4199,
+      "best_instruction_delta": 208,
+      "best_instruction_prefix_len": 8,
+      "passes": [
+        "early-cse",
+        "mergereturn",
+        "loop-distribute",
+        "dce",
+        "gvn-sink",
+        "argpromotion",
+        "loop-unroll",
+        "gvn-sink",
+        "argpromotion",
+        "loop-unroll",
+        "jump-threading",
+        "dce"
+      ],
+      "best_passes": [
+        "early-cse",
+        "mergereturn",
+        "loop-distribute",
+        "dce",
+        "gvn-sink",
+        "argpromotion",
+        "loop-unroll",
+        "gvn-sink",
+        "argpromotion",
+        "loop-unroll",
+        "jump-threading"
+      ],
+      "best_instruction_passes": [
+        "early-cse",
+        "mergereturn",
+        "loop-distribute",
+        "dce",
+        "gvn-sink",
+        "argpromotion",
+        "loop-unroll",
+        "gvn-sink"
+      ],
+      "graph_score": {
+        "order_score": 23520,
+        "conflict_score": 5040,
+        "net_score": 18480,
+        "adjacent_score": 4480,
+        "length": 12,
+        "node_coverage": 0.38095238095238093
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 34,
+      "chunks_macro": 2,
+      "chunks_single": 19,
+      "paths": 500,
+      "inventory_size": 55,
+      "pool_unique_paths": 46791,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 38,
+      "rescoring_scale": 0.21443546429301416,
+      "top_chunks": [
+        {
+          "passes": [
+            "early-cse",
+            "mergereturn"
+          ],
+          "value": 673.7777777777778
+        },
+        {
+          "passes": [
+            "early-cse",
+            "mergereturn",
+            "loop-distribute"
+          ],
+          "value": 630.8571428571429
+        },
+        {
+          "passes": [
+            "early-cse",
+            "mergereturn",
+            "loop-distribute",
+            "dce",
+            "gvn-sink",
+            "argpromotion",
+            "loop-unroll"
+          ],
+          "value": 513.5
+        },
+        {
+          "passes": [
+            "early-cse",
+            "mergereturn",
+            "loop-distribute",
+            "dce"
+          ],
+          "value": 343.55555555555554
+        },
+        {
+          "passes": [
+            "early-cse"
+          ],
+          "value": 278.22222222222223
+        }
+      ],
+      "wave2_pool_available": 46759,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 6,
+      "chunk_forest_score": 0.6935414662984747,
+      "chunk_forest_new_nodes": 1,
+      "chunk_indexes": [
+        6,
+        36,
+        0,
+        8,
+        41,
+        35,
+        39
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_1985",
+      "heuristic": "chunk_forest",
+      "candidate_index": 15,
+      "start_pass": "gvn-hoist",
+      "start_weight": 854,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_1985.bc",
+      "baseline_size": 426374,
+      "oz_size": 425550,
+      "oz_delta": 824,
+      "baseline_instruction_count": 91332,
+      "oz_instruction_count": 90710,
+      "oz_instruction_delta": 622,
+      "final_size": 388286,
+      "final_delta": 38088,
+      "best_size": 388286,
+      "best_delta": 38088,
+      "best_prefix_len": 12,
+      "final_instruction_count": 82994,
+      "final_instruction_delta": 8338,
+      "best_instruction_count": 82994,
+      "best_instruction_delta": 8338,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "gvn-hoist",
+        "iroutliner",
+        "attributor",
+        "loop-simplifycfg",
+        "iroutliner",
+        "separate-const-offset-from-gep",
+        "early-cse",
+        "ipsccp",
+        "mergefunc",
+        "mergereturn",
+        "iroutliner",
+        "separate-const-offset-from-gep"
+      ],
+      "best_passes": [
+        "gvn-hoist",
+        "iroutliner",
+        "attributor",
+        "loop-simplifycfg",
+        "iroutliner",
+        "separate-const-offset-from-gep",
+        "early-cse",
+        "ipsccp",
+        "mergefunc",
+        "mergereturn",
+        "iroutliner",
+        "separate-const-offset-from-gep"
+      ],
+      "best_instruction_passes": [
+        "gvn-hoist",
+        "iroutliner",
+        "attributor",
+        "loop-simplifycfg",
+        "iroutliner",
+        "separate-const-offset-from-gep",
+        "early-cse",
+        "ipsccp",
+        "mergefunc",
+        "mergereturn",
+        "iroutliner",
+        "separate-const-offset-from-gep"
+      ],
+      "graph_score": {
+        "order_score": 94376,
+        "conflict_score": 51140,
+        "net_score": 43236,
+        "adjacent_score": 28422,
+        "length": 12,
+        "node_coverage": 0.12
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 60,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 84,
+      "pool_unique_paths": 68383,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 42,
+      "rescoring_scale": 1.2540267218379835,
+      "top_chunks": [
+        {
+          "passes": [
+            "early-cse",
+            "ipsccp",
+            "mergefunc",
+            "mergereturn"
+          ],
+          "value": 33168.0
+        },
+        {
+          "passes": [
+            "early-cse",
+            "ipsccp",
+            "mergefunc"
+          ],
+          "value": 32866.666666666664
+        },
+        {
+          "passes": [
+            "ipsccp",
+            "mergefunc"
+          ],
+          "value": 32328.0
+        },
+        {
+          "passes": [
+            "mergefunc"
+          ],
+          "value": 31416.0
+        },
+        {
+          "passes": [
+            "ipsccp",
+            "mergefunc",
+            "mergereturn"
+          ],
+          "value": 23842.0
+        }
+      ],
+      "wave2_pool_available": 68344,
+      "wave2_skipped": false,
+      "crashing_passes": [
+        "instcombine",
+        "loop-bound-split"
+      ],
+      "wave": 1,
+      "wave_candidate_index": 15,
+      "chunk_forest_score": 3610.7477802121775,
+      "chunk_forest_new_nodes": 12,
+      "chunk_indexes": [
+        74,
+        60,
+        66,
+        68,
+        21,
+        22,
+        26,
+        27,
+        20,
+        23
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_2",
+      "heuristic": "chunk_forest",
+      "candidate_index": 25,
+      "start_pass": "redundant-dbg-inst-elim",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_2.bc",
+      "baseline_size": 92951,
+      "oz_size": 92079,
+      "oz_delta": 872,
+      "baseline_instruction_count": 17038,
+      "oz_instruction_count": 16713,
+      "oz_instruction_delta": 325,
+      "final_size": 90316,
+      "final_delta": 2635,
+      "best_size": 90316,
+      "best_delta": 2635,
+      "best_prefix_len": 12,
+      "final_instruction_count": 16300,
+      "final_instruction_delta": 738,
+      "best_instruction_count": 16300,
+      "best_instruction_delta": 738,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "separate-const-offset-from-gep",
+        "mergeicmps",
+        "lower-constant-intrinsics",
+        "iroutliner",
+        "sink",
+        "separate-const-offset-from-gep",
+        "tailcallelim",
+        "separate-const-offset-from-gep",
+        "gvn",
+        "jump-threading"
+      ],
+      "best_passes": [
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "separate-const-offset-from-gep",
+        "mergeicmps",
+        "lower-constant-intrinsics",
+        "iroutliner",
+        "sink",
+        "separate-const-offset-from-gep",
+        "tailcallelim",
+        "separate-const-offset-from-gep",
+        "gvn",
+        "jump-threading"
+      ],
+      "best_instruction_passes": [
+        "redundant-dbg-inst-elim",
+        "newgvn",
+        "separate-const-offset-from-gep",
+        "mergeicmps",
+        "lower-constant-intrinsics",
+        "iroutliner",
+        "sink",
+        "separate-const-offset-from-gep",
+        "tailcallelim",
+        "separate-const-offset-from-gep",
+        "gvn",
+        "jump-threading"
+      ],
+      "graph_score": {
+        "order_score": 25248,
+        "conflict_score": 8022,
+        "net_score": 17226,
+        "adjacent_score": 6702,
+        "length": 12,
+        "node_coverage": 0.12345679012345678
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 60,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 84,
+      "pool_unique_paths": 63691,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 28,
+      "rescoring_scale": 0.18861309831815207,
+      "top_chunks": [
+        {
+          "passes": [
+            "iroutliner"
+          ],
+          "value": 1278.4285714285713
+        },
+        {
+          "passes": [
+            "lower-constant-intrinsics",
+            "mem2reg",
+            "iroutliner"
+          ],
+          "value": 1136.0
+        },
+        {
+          "passes": [
+            "redundant-dbg-inst-elim",
+            "newgvn"
+          ],
+          "value": 720.0
+        },
+        {
+          "passes": [
+            "redundant-dbg-inst-elim",
+            "newgvn",
+            "separate-const-offset-from-gep"
+          ],
+          "value": 658.5
+        },
+        {
+          "passes": [
+            "redundant-dbg-inst-elim",
+            "newgvn",
+            "separate-const-offset-from-gep",
+            "mergeicmps"
+          ],
+          "value": 608.0
+        }
+      ],
+      "wave2_pool_available": 63678,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 12,
+      "chunk_forest_score": 41.69338498349803,
+      "chunk_forest_new_nodes": 7,
+      "chunk_indexes": [
+        13,
+        14,
+        12,
+        66,
+        70,
+        26,
+        81
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_25",
+      "heuristic": "chunk_forest",
+      "candidate_index": 15,
+      "start_pass": "div-rem-pairs",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_25.bc",
+      "baseline_size": 9546,
+      "oz_size": 9592,
+      "oz_delta": -46,
+      "baseline_instruction_count": 1872,
+      "oz_instruction_count": 1877,
+      "oz_instruction_delta": -5,
+      "final_size": 9465,
+      "final_delta": 81,
+      "best_size": 9465,
+      "best_delta": 81,
+      "best_prefix_len": 4,
+      "final_instruction_count": 1844,
+      "final_instruction_delta": 28,
+      "best_instruction_count": 1844,
+      "best_instruction_delta": 28,
+      "best_instruction_prefix_len": 4,
+      "passes": [
+        "div-rem-pairs",
+        "argpromotion",
+        "gvn-sink",
+        "instcombine",
+        "loop-sink",
+        "argpromotion",
+        "gvn-sink",
+        "instcombine",
+        "bdce",
+        "constraint-elimination",
+        "loop-rotate",
+        "gvn-hoist"
+      ],
+      "best_passes": [
+        "div-rem-pairs",
+        "argpromotion",
+        "gvn-sink",
+        "instcombine"
+      ],
+      "best_instruction_passes": [
+        "div-rem-pairs",
+        "argpromotion",
+        "gvn-sink",
+        "instcombine"
+      ],
+      "graph_score": {
+        "order_score": 1050,
+        "conflict_score": 385,
+        "net_score": 665,
+        "adjacent_score": 360,
+        "length": 12,
+        "node_coverage": 0.3103448275862069
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 35,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 59,
+      "pool_unique_paths": 53749,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 35,
+      "rescoring_scale": 0.16306983079260307,
+      "top_chunks": [
+        {
+          "passes": [
+            "div-rem-pairs",
+            "argpromotion",
+            "gvn-sink"
+          ],
+          "value": 48.0
+        },
+        {
+          "passes": [
+            "loop-unroll",
+            "div-rem-pairs",
+            "argpromotion",
+            "gvn-sink"
+          ],
+          "value": 38.4
+        },
+        {
+          "passes": [
+            "div-rem-pairs",
+            "argpromotion",
+            "gvn-sink",
+            "instcombine"
+          ],
+          "value": 36.0
+        },
+        {
+          "passes": [
+            "gvn-sink",
+            "instcombine"
+          ],
+          "value": 34.22222222222222
+        },
+        {
+          "passes": [
+            "argpromotion",
+            "gvn-sink"
+          ],
+          "value": 27.428571428571427
+        }
+      ],
+      "wave2_pool_available": 53717,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 15,
+      "chunk_forest_score": 32.100929054054056,
+      "chunk_forest_new_nodes": 4,
+      "chunk_indexes": [
+        5,
+        6,
+        8,
+        40,
+        4,
+        19,
+        20,
+        21
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_3",
+      "heuristic": "chunk_forest",
+      "candidate_index": 20,
+      "start_pass": "gvn-hoist",
+      "start_weight": 6,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_3.bc",
+      "baseline_size": 12194,
+      "oz_size": 12370,
+      "oz_delta": -176,
+      "baseline_instruction_count": 2661,
+      "oz_instruction_count": 2694,
+      "oz_instruction_delta": -33,
+      "final_size": 11954,
+      "final_delta": 240,
+      "best_size": 11954,
+      "best_delta": 240,
+      "best_prefix_len": 12,
+      "final_instruction_count": 2580,
+      "final_instruction_delta": 81,
+      "best_instruction_count": 2580,
+      "best_instruction_delta": 81,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "gvn-hoist",
+        "dse",
+        "loop-rotate",
+        "loop-sink",
+        "sccp",
+        "attributor",
+        "dce",
+        "loop-interchange",
+        "dse",
+        "libcalls-shrinkwrap",
+        "jump-threading",
+        "consthoist"
+      ],
+      "best_passes": [
+        "gvn-hoist",
+        "dse",
+        "loop-rotate",
+        "loop-sink",
+        "sccp",
+        "attributor",
+        "dce",
+        "loop-interchange",
+        "dse",
+        "libcalls-shrinkwrap",
+        "jump-threading",
+        "consthoist"
+      ],
+      "best_instruction_passes": [
+        "gvn-hoist",
+        "dse",
+        "loop-rotate",
+        "loop-sink",
+        "sccp",
+        "attributor",
+        "dce",
+        "loop-interchange",
+        "dse",
+        "libcalls-shrinkwrap",
+        "jump-threading",
+        "consthoist"
+      ],
+      "graph_score": {
+        "order_score": 1061,
+        "conflict_score": 240,
+        "net_score": 821,
+        "adjacent_score": 382,
+        "length": 12,
+        "node_coverage": 0.5789473684210527
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 32,
+      "chunks_macro": 0,
+      "chunks_single": 19,
+      "paths": 500,
+      "inventory_size": 51,
+      "pool_unique_paths": 65166,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 40,
+      "rescoring_scale": 0.3885382423843962,
+      "top_chunks": [
+        {
+          "passes": [
+            "loop-rotate",
+            "loop-sink",
+            "sccp",
+            "attributor"
+          ],
+          "value": 122.0
+        },
+        {
+          "passes": [
+            "loop-rotate",
+            "loop-sink",
+            "sccp",
+            "attributor",
+            "dce",
+            "loop-interchange",
+            "dse"
+          ],
+          "value": 96.0
+        },
+        {
+          "passes": [
+            "gvn"
+          ],
+          "value": 54.22222222222222
+        },
+        {
+          "passes": [
+            "loop-sink",
+            "sccp",
+            "attributor"
+          ],
+          "value": 53.333333333333336
+        },
+        {
+          "passes": [
+            "loop-sink",
+            "sccp",
+            "attributor",
+            "dce"
+          ],
+          "value": 53.333333333333336
+        }
+      ],
+      "wave2_pool_available": 65134,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 20,
+      "chunk_forest_score": -18.789384051067074,
+      "chunk_forest_new_nodes": 2,
+      "chunk_indexes": [
+        45,
+        38,
+        21,
+        40,
+        41,
+        18,
+        12
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_4",
+      "heuristic": "chunk_forest",
+      "candidate_index": 20,
+      "start_pass": "tailcallelim",
+      "start_weight": 0,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_4.bc",
+      "baseline_size": 28470,
+      "oz_size": 28422,
+      "oz_delta": 48,
+      "baseline_instruction_count": 5500,
+      "oz_instruction_count": 5469,
+      "oz_instruction_delta": 31,
+      "final_size": 27724,
+      "final_delta": 746,
+      "best_size": 27724,
+      "best_delta": 746,
+      "best_prefix_len": 12,
+      "final_instruction_count": 5297,
+      "final_instruction_delta": 203,
+      "best_instruction_count": 5297,
+      "best_instruction_delta": 203,
+      "best_instruction_prefix_len": 12,
+      "passes": [
+        "tailcallelim",
+        "instsimplify",
+        "iroutliner",
+        "argpromotion",
+        "called-value-propagation",
+        "float2int",
+        "loop-idiom",
+        "iroutliner",
+        "argpromotion",
+        "loop-idiom",
+        "iroutliner",
+        "gvn-sink"
+      ],
+      "best_passes": [
+        "tailcallelim",
+        "instsimplify",
+        "iroutliner",
+        "argpromotion",
+        "called-value-propagation",
+        "float2int",
+        "loop-idiom",
+        "iroutliner",
+        "argpromotion",
+        "loop-idiom",
+        "iroutliner",
+        "gvn-sink"
+      ],
+      "best_instruction_passes": [
+        "tailcallelim",
+        "instsimplify",
+        "iroutliner",
+        "argpromotion",
+        "called-value-propagation",
+        "float2int",
+        "loop-idiom",
+        "iroutliner",
+        "argpromotion",
+        "loop-idiom",
+        "iroutliner",
+        "gvn-sink"
+      ],
+      "graph_score": {
+        "order_score": 4222,
+        "conflict_score": 890,
+        "net_score": 3332,
+        "adjacent_score": 1298,
+        "length": 12,
+        "node_coverage": 0.3076923076923077
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 35,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 59,
+      "pool_unique_paths": 30430,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 33,
+      "rescoring_scale": 0.22904458030697888,
+      "top_chunks": [
+        {
+          "passes": [
+            "tailcallelim",
+            "instsimplify",
+            "iroutliner"
+          ],
+          "value": 501.0
+        },
+        {
+          "passes": [
+            "iroutliner"
+          ],
+          "value": 398.57142857142856
+        },
+        {
+          "passes": [
+            "instsimplify",
+            "iroutliner"
+          ],
+          "value": 388.0
+        },
+        {
+          "passes": [
+            "called-value-propagation",
+            "float2int",
+            "loop-idiom",
+            "iroutliner"
+          ],
+          "value": 108.0
+        },
+        {
+          "passes": [
+            "float2int",
+            "loop-idiom",
+            "iroutliner"
+          ],
+          "value": 108.0
+        }
+      ],
+      "wave2_pool_available": 30404,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 20,
+      "chunk_forest_score": 40.133593749999996,
+      "chunk_forest_new_nodes": 2,
+      "chunk_indexes": [
+        39,
+        9,
+        19,
+        22,
+        23,
+        25,
+        40,
+        49,
+        35,
+        47
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_5",
+      "heuristic": "chunk_forest",
+      "candidate_index": 6,
+      "start_pass": "loop-idiom",
+      "start_weight": 257,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_5.bc",
+      "baseline_size": 78296,
+      "oz_size": 76496,
+      "oz_delta": 1800,
+      "baseline_instruction_count": 17259,
+      "oz_instruction_count": 16742,
+      "oz_instruction_delta": 517,
+      "final_size": 77140,
+      "final_delta": 1156,
+      "best_size": 77140,
+      "best_delta": 1156,
+      "best_prefix_len": 12,
+      "final_instruction_count": 16966,
+      "final_instruction_delta": 293,
+      "best_instruction_count": 16964,
+      "best_instruction_delta": 295,
+      "best_instruction_prefix_len": 11,
+      "passes": [
+        "loop-idiom",
+        "lower-expect",
+        "inferattrs",
+        "memcpyopt",
+        "instcombine",
+        "deadargelim",
+        "loop-instsimplify",
+        "vector-combine",
+        "loop-load-elim",
+        "sink",
+        "gvn",
+        "simplifycfg"
+      ],
+      "best_passes": [
+        "loop-idiom",
+        "lower-expect",
+        "inferattrs",
+        "memcpyopt",
+        "instcombine",
+        "deadargelim",
+        "loop-instsimplify",
+        "vector-combine",
+        "loop-load-elim",
+        "sink",
+        "gvn",
+        "simplifycfg"
+      ],
+      "best_instruction_passes": [
+        "loop-idiom",
+        "lower-expect",
+        "inferattrs",
+        "memcpyopt",
+        "instcombine",
+        "deadargelim",
+        "loop-instsimplify",
+        "vector-combine",
+        "loop-load-elim",
+        "sink",
+        "gvn"
+      ],
+      "graph_score": {
+        "order_score": 4651,
+        "conflict_score": 122,
+        "net_score": 4529,
+        "adjacent_score": 1494,
+        "length": 12,
+        "node_coverage": 0.16666666666666666
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 60,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 84,
+      "pool_unique_paths": 37097,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 37,
+      "rescoring_scale": 0.5953037149868833,
+      "top_chunks": [
+        {
+          "passes": [
+            "loop-idiom",
+            "lower-expect",
+            "inferattrs",
+            "memcpyopt",
+            "gvn"
+          ],
+          "value": 976.0
+        },
+        {
+          "passes": [
+            "memcpyopt",
+            "gvn"
+          ],
+          "value": 896.0
+        },
+        {
+          "passes": [
+            "gvn"
+          ],
+          "value": 665.6
+        },
+        {
+          "passes": [
+            "instcombine",
+            "deadargelim",
+            "loop-instsimplify"
+          ],
+          "value": 620.0
+        },
+        {
+          "passes": [
+            "instcombine",
+            "deadargelim",
+            "loop-instsimplify",
+            "vector-combine"
+          ],
+          "value": 620.0
+        }
+      ],
+      "wave2_pool_available": 37066,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 6,
+      "chunk_forest_score": 701.6891891891892,
+      "chunk_forest_new_nodes": 3,
+      "chunk_indexes": [
+        3,
+        1,
+        14,
+        11,
+        17,
+        63,
+        60,
+        52
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_50",
+      "heuristic": "chunk_forest",
+      "candidate_index": 48,
+      "start_pass": "loop-rotate",
+      "start_weight": 73,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_50.bc",
+      "baseline_size": 133261,
+      "oz_size": 131981,
+      "oz_delta": 1280,
+      "baseline_instruction_count": 28070,
+      "oz_instruction_count": 27672,
+      "oz_instruction_delta": 398,
+      "final_size": 129631,
+      "final_delta": 3630,
+      "best_size": 128961,
+      "best_delta": 4300,
+      "best_prefix_len": 11,
+      "final_instruction_count": 26293,
+      "final_instruction_delta": 1777,
+      "best_instruction_count": 26124,
+      "best_instruction_delta": 1946,
+      "best_instruction_prefix_len": 10,
+      "passes": [
+        "loop-rotate",
+        "constraint-elimination",
+        "nary-reassociate",
+        "chr",
+        "float2int",
+        "gvn",
+        "jump-threading",
+        "nary-reassociate",
+        "memcpyopt",
+        "iroutliner",
+        "gvn",
+        "hotcoldsplit"
+      ],
+      "best_passes": [
+        "loop-rotate",
+        "constraint-elimination",
+        "nary-reassociate",
+        "chr",
+        "float2int",
+        "gvn",
+        "jump-threading",
+        "nary-reassociate",
+        "memcpyopt",
+        "iroutliner",
+        "gvn"
+      ],
+      "best_instruction_passes": [
+        "loop-rotate",
+        "constraint-elimination",
+        "nary-reassociate",
+        "chr",
+        "float2int",
+        "gvn",
+        "jump-threading",
+        "nary-reassociate",
+        "memcpyopt",
+        "iroutliner"
+      ],
+      "graph_score": {
+        "order_score": 3853,
+        "conflict_score": 1626,
+        "net_score": 2227,
+        "adjacent_score": 1027,
+        "length": 12,
+        "node_coverage": 0.11904761904761904
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 60,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 84,
+      "pool_unique_paths": 57070,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 33,
+      "rescoring_scale": 0.8320239713954778,
+      "top_chunks": [
+        {
+          "passes": [
+            "iroutliner"
+          ],
+          "value": 1910.1666666666667
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "called-value-propagation"
+          ],
+          "value": 1413.5
+        },
+        {
+          "passes": [
+            "memcpyopt",
+            "iroutliner",
+            "gvn"
+          ],
+          "value": 1373.5
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "hotcoldsplit"
+          ],
+          "value": 1065.0
+        },
+        {
+          "passes": [
+            "iroutliner",
+            "hotcoldsplit",
+            "iroutliner",
+            "called-value-propagation"
+          ],
+          "value": 1002.8
+        }
+      ],
+      "wave2_pool_available": 57049,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 2,
+      "wave_candidate_index": 27,
+      "chunk_forest_score": -12.85108554450963,
+      "chunk_forest_new_nodes": 5,
+      "chunk_indexes": [
+        31,
+        29,
+        74,
+        15,
+        2
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    },
+    {
+      "benchmark": "tensorflow-v0_500",
+      "heuristic": "chunk_forest",
+      "candidate_index": 3,
+      "start_pass": "mergereturn",
+      "start_weight": 45,
+      "top_k": 500,
+      "bitcode_path": "experiments/translation_unit_bitcode/autotune_stratified_30/tensorflow-v0_500.bc",
+      "baseline_size": 15730,
+      "oz_size": 15762,
+      "oz_delta": -32,
+      "baseline_instruction_count": 3114,
+      "oz_instruction_count": 3108,
+      "oz_instruction_delta": 6,
+      "final_size": 15425,
+      "final_delta": 305,
+      "best_size": 15425,
+      "best_delta": 305,
+      "best_prefix_len": 7,
+      "final_instruction_count": 2831,
+      "final_instruction_delta": 283,
+      "best_instruction_count": 2831,
+      "best_instruction_delta": 283,
+      "best_instruction_prefix_len": 7,
+      "passes": [
+        "mergereturn",
+        "loop-idiom",
+        "hotcoldsplit",
+        "hotcoldsplit",
+        "gvn",
+        "iroutliner",
+        "iroutliner",
+        "loop-unroll-and-jam",
+        "lcssa",
+        "deadargelim",
+        "alignment-from-assumptions",
+        "loop-idiom"
+      ],
+      "best_passes": [
+        "mergereturn",
+        "loop-idiom",
+        "hotcoldsplit",
+        "hotcoldsplit",
+        "gvn",
+        "iroutliner",
+        "iroutliner"
+      ],
+      "best_instruction_passes": [
+        "mergereturn",
+        "loop-idiom",
+        "hotcoldsplit",
+        "hotcoldsplit",
+        "gvn",
+        "iroutliner",
+        "iroutliner"
+      ],
+      "graph_score": {
+        "order_score": 385,
+        "conflict_score": 296,
+        "net_score": 89,
+        "adjacent_score": 158,
+        "length": 12,
+        "node_coverage": 0.20930232558139536
+      },
+      "error": "",
+      "error_kind": "",
+      "chunks_mined": 40,
+      "chunks_macro": 0,
+      "chunks_single": 24,
+      "paths": 500,
+      "inventory_size": 64,
+      "pool_unique_paths": 79969,
+      "walks_executed": 100000,
+      "wave1_real_evals": 125,
+      "wave2_real_evals": 125,
+      "chunks_remeasured": 43,
+      "rescoring_scale": 0.8839088615578683,
+      "top_chunks": [
+        {
+          "passes": [
+            "iroutliner"
+          ],
+          "value": 281.7142857142857
+        },
+        {
+          "passes": [
+            "gvn",
+            "iroutliner"
+          ],
+          "value": 224.83333333333334
+        },
+        {
+          "passes": [
+            "instcombine",
+            "iroutliner"
+          ],
+          "value": 122.0
+        },
+        {
+          "passes": [
+            "separate-const-offset-from-gep",
+            "gvn",
+            "iroutliner"
+          ],
+          "value": 91.0
+        },
+        {
+          "passes": [
+            "lcssa",
+            "loop-distribute",
+            "deadargelim",
+            "hotcoldsplit"
+          ],
+          "value": 64.0
+        }
+      ],
+      "wave2_pool_available": 79935,
+      "wave2_skipped": false,
+      "crashing_passes": [],
+      "wave": 1,
+      "wave_candidate_index": 3,
+      "chunk_forest_score": 139.67241379310343,
+      "chunk_forest_new_nodes": 9,
+      "chunk_indexes": [
+        43,
+        1,
+        0,
+        40,
+        46,
+        21,
+        41,
+        10,
+        49,
+        52,
+        42
+      ],
+      "prefix_failures": 0,
+      "instruction_measurement": "deferred",
+      "instruction_eval_cost": 12,
+      "real_evals": 250
+    }
+  ],
+  "_source": "runs/chunk_forest_minsup1/tu_eval_chunk_forest.json"
+}
