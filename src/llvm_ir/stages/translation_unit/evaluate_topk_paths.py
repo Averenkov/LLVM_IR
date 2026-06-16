@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from llvm_ir.heuristics.translation_unit.bucket_dag import (
+    BucketDagConfig,
+    bucket_layer_top_paths,
+)
 from llvm_ir.heuristics.translation_unit.cycle_breaking_max_path import (
     CycleBreakingMaxPathConfig,
     cycle_breaking_diverse_start_paths,
@@ -167,6 +171,16 @@ def generate_topk_paths(
             graph,
             config=ExhaustivePathConfig(
                 path_length=args.exhaustive_length,
+                min_edge_weight=args.min_edge_weight,
+            ),
+            top_k=args.top_k,
+        )
+    if heuristic in {"bucket_dag_topk", "bucket_dag_top250"}:
+        return bucket_layer_top_paths(
+            graph,
+            config=BucketDagConfig(
+                chunk_size=args.chunk_size,
+                max_length=args.max_length,
                 min_edge_weight=args.min_edge_weight,
             ),
             top_k=args.top_k,
@@ -1177,6 +1191,7 @@ def make_report_payload(
             "superpath_eval_top_k": getattr(args, "superpath_eval_top_k", 0),
             "measure_instructions": args.measure_instructions,
             "instruction_measurement": getattr(args, "instruction_measurement", "deferred"),
+            "chunk_size": getattr(args, "chunk_size", 4),
         },
         "summary": summary,
         "prefix_cache_counts": dict(prefix_cache_counts),
@@ -1290,9 +1305,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "random_walk_top10",
             "random_walk_topk",
             "exhaustive_len6_top10",
+            "bucket_dag_topk",
+            "bucket_dag_top250",
         ],
     )
     parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=4,
+        help="Bucket size for the bucket_dag heuristic (nodes per layer).",
+    )
     parser.add_argument("--top-starts", type=int, default=10)
     parser.add_argument("--paths-per-start", type=int, default=10)
     parser.add_argument("--max-length", type=int, default=12)
