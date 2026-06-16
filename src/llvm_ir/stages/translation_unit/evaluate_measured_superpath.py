@@ -125,9 +125,11 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         edges = prune_small_edges(graph.edge_counts, args.prune_percent)
         nodes = sorted(graph.nodes)
 
-        # Scale the TU-eval budgets down for small graphs ("lower limits for
-        # small benchmarks"); large graphs (>= size_ref nodes) stay at full size.
-        size_scale = min(1.0, len(nodes) / max(1, args.size_ref))
+        # Scale the TU-eval budgets with graph size: down for small graphs, and
+        # *up* (to --max-size-scale) for large graphs, which are sparse at the
+        # base budget and hold the most weighted improvement (e.g. tensorflow-v0_2,
+        # 81 nodes). Graphs at exactly size_ref nodes keep the base budget.
+        size_scale = min(args.max_size_scale, len(nodes) / max(1, args.size_ref))
         eff_select = max(args.min_budget, round(args.select_count * size_scale))
         eff_edges = max(args.min_budget, round(args.edge_samples * size_scale))
         eff_paths = max(args.min_budget, round(args.path_budget * size_scale))
@@ -357,7 +359,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Cover each starting pass before filling by weight when selecting segments.",
     )
     parser.add_argument("--epsilon-edge", type=float, default=0.2, help="Fraction of phase-2 edges sampled uniformly (explore).")
-    parser.add_argument("--size-ref", type=int, default=40, help="Graph nodes at which budgets reach full size.")
+    parser.add_argument("--size-ref", type=int, default=40, help="Graph nodes at which budgets reach base size.")
+    parser.add_argument("--max-size-scale", type=float, default=3.0, help="Max budget multiplier for large graphs.")
     parser.add_argument("--min-budget", type=int, default=16, help="Floor for scaled per-phase budgets on small graphs.")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--super-beam", type=int, default=96)
