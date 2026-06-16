@@ -1103,51 +1103,80 @@ def _selected_key(row: dict[str, Any]) -> tuple[int, int, int]:
     )
 
 
+def _evaluate_one_benchmark(
+    benchmark: str,
+    graph: PassOrderGraph,
+    bitcode_path: Path,
+    args: argparse.Namespace,
+):
+    """Evaluate one benchmark (picklable worker for ProcessPoolExecutor)."""
+    if args.heuristic == "cycle_breaking_superpath_topk":
+        selected, candidates, cache_count = evaluate_superpath_for_benchmark(
+            graph,
+            bitcode_path,
+            args=args,
+            measure_instructions=args.measure_instructions,
+            instruction_measurement=args.instruction_measurement,
+        )
+    else:
+        paths = generate_topk_paths(graph, args.heuristic, args)
+        selected, candidates, cache_count = evaluate_topk_for_benchmark(
+            graph,
+            bitcode_path,
+            paths,
+            heuristic=args.heuristic,
+            measure_instructions=args.measure_instructions,
+            instruction_measurement=args.instruction_measurement,
+        )
+    return benchmark, selected, candidates, cache_count
+
+
 def build_report(
     graphs: dict[str, PassOrderGraph],
     bitcode_paths: dict[str, Path],
     args: argparse.Namespace,
 ) -> dict[str, Any]:
-    selected_rows: list[dict[str, Any]] = []
-    candidate_rows: list[dict[str, Any]] = []
-    prefix_cache_counts: dict[str, int] = {}
     benchmarks = sorted(graphs)
     if args.limit:
         benchmarks = benchmarks[: args.limit]
+    jobs = max(1, getattr(args, "jobs", 1))
+    results: dict[str, tuple] = {}
 
-    for index, benchmark in enumerate(benchmarks, start=1):
-        print(
-            f"[{index}/{len(benchmarks)}] {benchmark}: {args.heuristic} top-{args.top_k}",
-            flush=True,
-        )
-        graph = graphs[benchmark]
-        if args.heuristic == "cycle_breaking_superpath_topk":
-            selected, candidates, cache_count = evaluate_superpath_for_benchmark(
-                graph,
-                bitcode_paths[benchmark],
-                args=args,
-                measure_instructions=args.measure_instructions,
-                instruction_measurement=args.instruction_measurement,
-            )
-        else:
-            paths = generate_topk_paths(graph, args.heuristic, args)
-            selected, candidates, cache_count = evaluate_topk_for_benchmark(
-                graph,
-                bitcode_paths[benchmark],
-                paths,
-                heuristic=args.heuristic,
-                measure_instructions=args.measure_instructions,
-                instruction_measurement=args.instruction_measurement,
-            )
-        selected_rows.append(selected)
-        candidate_rows.extend(candidates)
-        prefix_cache_counts[benchmark] = cache_count
-        write_report(
-            make_report_payload(args, selected_rows, candidate_rows, prefix_cache_counts),
-            args.output,
-        )
+    def assemble() -> dict[str, Any]:
+        ordered = [b for b in benchmarks if b in results]
+        selected_rows = [results[b][0] for b in ordered]
+        candidate_rows = [row for b in ordered for row in results[b][1]]
+        prefix_cache_counts = {b: results[b][2] for b in ordered}
+        payload = make_report_payload(args, selected_rows, candidate_rows, prefix_cache_counts)
+        write_report(payload, args.output)
+        return payload
 
-    return make_report_payload(args, selected_rows, candidate_rows, prefix_cache_counts)
+    if jobs == 1:
+        for index, benchmark in enumerate(benchmarks, start=1):
+            print(f"[{index}/{len(benchmarks)}] {benchmark}: {args.heuristic} top-{args.top_k}", flush=True)
+            _, selected, candidates, cache_count = _evaluate_one_benchmark(
+                benchmark, graphs[benchmark], bitcode_paths[benchmark], args
+            )
+            results[benchmark] = (selected, candidates, cache_count)
+            assemble()
+        return assemble()
+
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    print(f"running {len(benchmarks)} benchmarks with --jobs {jobs}", flush=True)
+    with ProcessPoolExecutor(max_workers=jobs) as executor:
+        futures = {
+            executor.submit(_evaluate_one_benchmark, b, graphs[b], bitcode_paths[b], args): b
+            for b in benchmarks
+        }
+        done = 0
+        for future in as_completed(futures):
+            benchmark, selected, candidates, cache_count = future.result()
+            results[benchmark] = (selected, candidates, cache_count)
+            done += 1
+            print(f"[{done}/{len(benchmarks)}] {benchmark} done", flush=True)
+            assemble()
+    return assemble()
 
 
 def make_report_payload(
@@ -1344,6 +1373,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--superpath-eval-top-k", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Process benchmarks in parallel across this many worker processes.",
+    )
     parser.add_argument(
         "--measure-instructions",
         action="store_true",
