@@ -22,6 +22,12 @@ llvm-ir-run-tu-heuristics = "llvm_ir.stages.translation_unit.path_heuristics:mai
 llvm-ir-eval-tu-heuristics = "llvm_ir.stages.translation_unit.evaluate:main"
 llvm-ir-eval-tu-topk-paths = "llvm_ir.stages.translation_unit.evaluate_topk_paths:main"
 llvm-ir-eval-tu-chunk-forest = "llvm_ir.stages.translation_unit.evaluate_chunk_forest:main"
+llvm-ir-eval-tu-mcts = "llvm_ir.stages.translation_unit.evaluate_tu_mcts:main"
+llvm-ir-eval-tu-bucket-dag-teacher = "llvm_ir.stages.translation_unit.evaluate_bucket_dag_teacher:main"
+llvm-ir-eval-tu-flow-paths = "llvm_ir.stages.translation_unit.evaluate_flow_paths:main"
+llvm-ir-eval-tu-function-sequences = "llvm_ir.stages.translation_unit.evaluate_function_sequences:main"
+llvm-ir-eval-tu-consensus-subseq = "llvm_ir.stages.translation_unit.evaluate_consensus_subseq:main"
+llvm-ir-eval-tu-measured-superpath = "llvm_ir.stages.translation_unit.evaluate_measured_superpath:main"
 llvm-ir-run-aggregation = "llvm_ir.scripts.run_aggregation:main"
 llvm-ir-export-aggregation-paths = "llvm_ir.heuristics.aggregation.export_paths:main"
 
