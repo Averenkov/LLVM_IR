@@ -229,8 +229,9 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         if super_edges and budget_ok():
             per_length = max(1, eff_paths // max(1, len(lengths)))
             supercands = superpaths_by_length(
-                segments, super_edges, lengths=lengths, per_length=per_length,
+                segments, super_edges, profits, lengths=lengths, per_length=per_length,
                 beam=args.super_beam, max_length=args.super_max_length,
+                vertex_weight=args.vertex_weight,
             )
             rows3, _ = _evaluate(
                 supercands, benchmark=benchmark, bitcode_path=bitcode_path, workdir=workdir,
@@ -363,6 +364,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-size-scale", type=float, default=3.0, help="Max budget multiplier for large graphs.")
     parser.add_argument("--min-budget", type=int, default=16, help="Floor for scaled per-phase budgets on small graphs.")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--vertex-weight", type=float, default=1.0, help="Weight of segment profits in super-path score (0 = edges only).")
     parser.add_argument("--super-beam", type=int, default=96)
     parser.add_argument("--super-max-length", type=int, default=20)
     parser.add_argument("--super-lengths", default="2,3,4,5", help="Super-path segment counts to emit.")

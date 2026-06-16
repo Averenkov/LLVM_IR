@@ -99,6 +99,17 @@ class CoreTests(unittest.TestCase):
         self.assertIn(("a", "b", "c", "d"), paths)    # 0->1->2 (len 3)
         self.assertFalse(any("x" in p for p in paths))  # isolated segment unused
 
+    def test_superpaths_vertex_weight_prefers_high_profit_segments(self) -> None:
+        # Two length-2 paths with equal edge weight; profits favor the (a,b)->(b,c) route.
+        segments = [("a", "b"), ("b", "c"), ("d", "e"), ("e", "f")]
+        super_edges = {(0, 1): 1.0, (2, 3): 1.0}
+        profits = [100.0, 100.0, 0.0, 0.0]
+        ranked = superpaths_by_length(
+            segments, super_edges, profits, lengths=(2,), per_length=2, beam=8, max_length=8, vertex_weight=1.0
+        )
+        # High-profit path (a,b,c) must rank before the zero-profit (d,e,f).
+        self.assertEqual(ranked[0], ("a", "b", "c"))
+
     def test_superpaths_respects_max_length(self) -> None:
         segments = [("a", "b", "c", "d"), ("e", "f", "g", "h")]
         super_edges = {(0, 1): 3.0}

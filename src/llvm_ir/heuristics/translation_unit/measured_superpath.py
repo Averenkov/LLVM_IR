@@ -166,27 +166,32 @@ def sample_index(weights: dict[int, float], rng: Random) -> int | None:
 def superpaths_by_length(
     segments: list[tuple[str, ...]],
     super_edges: dict[tuple[int, int], float],
+    profits: list[float] | None = None,
     *,
     lengths: tuple[int, ...] = (2, 3, 4, 5),
     per_length: int = 62,
     beam: int = 96,
     max_length: int = 20,
+    vertex_weight: float = 1.0,
 ) -> list[tuple[str, ...]]:
     """Beam-search the best super-paths of each segment count in ``lengths``.
 
-    The super-graph contains only measured edges (``super_edges``); a super-path
-    score is the sum of its measured edge values. Segments are concatenated with
+    The super-graph contains only measured edges (``super_edges``). A super-path
+    score sums its measured edge values plus ``vertex_weight`` times the measured
+    profit of each segment it passes through (so paths built from high-value
+    segments rank higher even with modest edges). Segments are concatenated with
     one-pass overlap dedup. Returns up to ``per_length`` candidates per length.
     """
     count = len(segments)
     if count == 0 or not super_edges:
         return []
+    profits = profits or [0.0] * count
     adjacency: dict[int, list[int]] = {i: [] for i in range(count)}
     for (i, j) in super_edges:
         adjacency[i].append(j)
 
     collected: dict[int, list[tuple[float, tuple[str, ...]]]] = {length: [] for length in lengths}
-    states = [(0.0, 1, i, tuple(segments[i])) for i in range(count)]
+    states = [(vertex_weight * profits[i], 1, i, tuple(segments[i])) for i in range(count)]
     states.sort(key=lambda s: -s[0])
     states = states[:beam]
     max_segments = max(lengths)
@@ -197,7 +202,7 @@ def superpaths_by_length(
                 merged = concat_segments(passes, tuple(segments[j]))
                 if len(merged) > max_length:
                     continue
-                nxt.append((score + super_edges[(last, j)], cnt + 1, j, merged))
+                nxt.append((score + super_edges[(last, j)] + vertex_weight * profits[j], cnt + 1, j, merged))
         nxt.sort(key=lambda s: -s[0])
         states = nxt[:beam]
         for score, cnt, _last, passes in states:
