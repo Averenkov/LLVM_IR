@@ -107,6 +107,42 @@ def vertex_budget_paths(
     return []
 
 
+def select_diverse_by_start(
+    paths: list[tuple[str, ...]],
+    count: int,
+) -> list[tuple[str, ...]]:
+    """Select ``count`` paths balancing start-diversity and graph weight.
+
+    ``paths`` must already be ordered by graph weight (best first). First one path
+    per distinct starting pass is taken (coverage -- this is what surfaces
+    interprocedural starts like mergefunc that a pure top-by-weight cut discards),
+    then the remainder is filled greedily by weight (quality).
+    """
+    if count <= 0 or not paths:
+        return list(paths[: max(0, count)])
+    rank = {path: index for index, path in enumerate(paths)}
+    by_start: dict[str, list[tuple[str, ...]]] = {}
+    for path in paths:
+        by_start.setdefault(path[0], []).append(path)
+    selected: list[tuple[str, ...]] = []
+    seen: set[tuple[str, ...]] = set()
+    # Phase A: one path per start, strongest starts first.
+    for start in sorted(by_start, key=lambda s: rank[by_start[s][0]]):
+        candidate = by_start[start][0]
+        selected.append(candidate)
+        seen.add(candidate)
+        if len(selected) >= count:
+            return selected
+    # Phase B: fill the rest by global weight.
+    for path in paths:
+        if path not in seen:
+            selected.append(path)
+            seen.add(path)
+            if len(selected) >= count:
+                break
+    return selected
+
+
 def concat_segments(left: tuple[str, ...], right: tuple[str, ...]) -> tuple[str, ...]:
     """Concatenate two segments with a one-pass overlap dedup."""
     add = right[1:] if (left and right and left[-1] == right[0]) else right

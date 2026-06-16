@@ -8,6 +8,7 @@ from llvm_ir.heuristics.translation_unit.measured_superpath import (
     node_support,
     prune_small_edges,
     sample_index,
+    select_diverse_by_start,
     superpaths_by_length,
     vertex_budget_paths,
 )
@@ -58,6 +59,28 @@ class CoreTests(unittest.TestCase):
         edges = {(s, t): 1 for s in nodes for t in nodes if s != t}
         support = {n: 1 for n in nodes}
         self.assertLessEqual(len(vertex_budget_paths(nodes, edges, support, total_budget=3, path_nodes=4)), 3)
+
+    def test_select_diverse_covers_each_start(self) -> None:
+        # weight-sorted: heaviest 3 all start with 'a'; 'b'/'c' starts rank lower.
+        paths = [
+            ("a", "1"), ("a", "2"), ("a", "3"),  # heavy, same start
+            ("b", "1"),                            # lighter, distinct start
+            ("c", "1"),                            # lighter, distinct start
+        ]
+        sel = select_diverse_by_start(paths, count=3)
+        starts = {p[0] for p in sel}
+        # pure top-3-by-weight would be {a} only; diversity must include b and c
+        self.assertEqual(starts, {"a", "b", "c"})
+
+    def test_select_diverse_fills_by_weight_after_coverage(self) -> None:
+        paths = [("a", "1"), ("a", "2"), ("b", "1"), ("c", "1")]
+        sel = select_diverse_by_start(paths, count=4)
+        # coverage first (a,b,c best), then fill with next-best by weight (a,2)
+        self.assertEqual(set(sel), {("a", "1"), ("b", "1"), ("c", "1"), ("a", "2")})
+
+    def test_select_diverse_single_start(self) -> None:
+        paths = [("a", "1"), ("a", "2"), ("a", "3")]
+        self.assertEqual(select_diverse_by_start(paths, count=2), [("a", "1"), ("a", "2")])
 
     def test_concat_overlap_dedup(self) -> None:
         self.assertEqual(concat_segments(("a", "b"), ("b", "c")), ("a", "b", "c"))

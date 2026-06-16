@@ -16,6 +16,7 @@ from llvm_ir.heuristics.translation_unit.measured_superpath import (
     node_support,
     prune_small_edges,
     sample_index,
+    select_diverse_by_start,
     superpaths_by_length,
     vertex_budget_paths,
 )
@@ -164,7 +165,10 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         generated = vertex_budget_paths(
             nodes, edges, support, total_budget=args.gen_budget, path_nodes=args.segment_nodes
         )
-        selected = generated[:eff_select]
+        if getattr(args, "diverse_select", True):
+            selected = select_diverse_by_start(generated, eff_select)
+        else:
+            selected = generated[:eff_select]
         rows1, _ = _evaluate(
             selected, benchmark=benchmark, bitcode_path=bitcode_path, workdir=workdir,
             prefix_cache=prefix_cache, wave=1, offset=0, budget=budget,
@@ -185,12 +189,20 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         tried: set[tuple[int, int]] = set()
         rng = Random(args.seed)
         attempts = 0
+        explore_edges = 0
         attempt_cap = eff_edges * 6
-        if args.waves > 1 and len(segments) >= 2:
+        n_seg = len(segments)
+        if args.waves > 1 and n_seg >= 2:
             while len(super_edges) < eff_edges and attempts < attempt_cap and budget_ok():
                 attempts += 1
-                i = sample_index(sample_w, rng)
-                j = sample_index(sample_w, rng)
+                # epsilon-greedy: explore uniformly, else exploit profit-weighted "best-to-best".
+                if rng.random() < args.epsilon_edge:
+                    i = rng.randrange(n_seg)
+                    j = rng.randrange(n_seg)
+                    explore_edges += 1
+                else:
+                    i = sample_index(sample_w, rng)
+                    j = sample_index(sample_w, rng)
                 if i is None or j is None or i == j or (i, j) in tried:
                     continue
                 tried.add((i, j))
@@ -234,6 +246,8 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
             "eff_select": eff_select, "eff_edges": eff_edges, "eff_paths": eff_paths,
             "gen_budget": args.gen_budget, "select_count": len(rows1),
             "measured_edges": len(super_edges), "edge_attempts": attempts,
+            "explore_edges": explore_edges,
+            "distinct_starts": len({s[0] for s in segments if s}),
             "crashing_passes": sorted(crashing),
             "phase1_real_evals": phase1_evals, "phase2_real_evals": phase2_evals,
             "phase3_real_evals": phase3_evals, "real_evals": len(prefix_cache) - 1,
@@ -336,6 +350,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--edge-samples", type=int, default=250, help="Measured super-edges sampled (best-to-best).")
     parser.add_argument("--path-budget", type=int, default=250, help="Super-paths measured, split across lengths.")
     parser.add_argument("--learn-alpha", type=float, default=1.0, help="Online weight boost per unit edge synergy.")
+    parser.add_argument(
+        "--diverse-select",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Cover each starting pass before filling by weight when selecting segments.",
+    )
+    parser.add_argument("--epsilon-edge", type=float, default=0.2, help="Fraction of phase-2 edges sampled uniformly (explore).")
     parser.add_argument("--size-ref", type=int, default=40, help="Graph nodes at which budgets reach full size.")
     parser.add_argument("--min-budget", type=int, default=16, help="Floor for scaled per-phase budgets on small graphs.")
     parser.add_argument("--seed", type=int, default=7)
