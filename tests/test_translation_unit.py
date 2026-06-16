@@ -2270,6 +2270,7 @@ class TranslationUnitContractTests(unittest.TestCase):
                 "lambda_cache": 0.0,
                 "gamma_diversity": 0.5,
                 "max_real_evals_per_benchmark": 0,
+                "prevalidate_passes": False,
             },
         )()
         original_measure = evaluate_chunk_forest.measure_text_size
@@ -2300,6 +2301,34 @@ class TranslationUnitContractTests(unittest.TestCase):
         self.assertGreaterEqual(len(candidates), 1)
         self.assertGreaterEqual(cache_count, 2)
         self.assertGreaterEqual(selected["chunks_macro"] + selected["chunks_single"], 1)
+
+    def test_find_crashing_passes_drops_only_crashing(self) -> None:
+        results = [
+            FunctionPassResult(
+                function="demo-v0_one.bc",
+                baseline_size=100,
+                best_size=70,
+                passes=["good", "boom", "also-good"],
+            )
+        ]
+
+        def fake_apply(input_bc: Path, passes: list[str], output_bc: Path) -> None:
+            if passes[0] == "boom":
+                raise evaluate_chunk_forest.LLVMCommandError("opt crashed rc=-11")
+
+        original_apply = evaluate_chunk_forest.apply_pass_sequence
+        try:
+            evaluate_chunk_forest.apply_pass_sequence = fake_apply
+            crashing = evaluate_chunk_forest.find_crashing_passes(
+                Path("demo.bc"), results, Path(".")
+            )
+        finally:
+            evaluate_chunk_forest.apply_pass_sequence = original_apply
+
+        self.assertEqual(crashing, {"boom"})
+        filtered = evaluate_chunk_forest.filter_passes_from_results(results, crashing)
+        self.assertEqual(filtered[0].passes, ["good", "also-good"])
+        self.assertEqual(filtered[0].best_size, 70)
 
     def test_summarize_evaluations_groups_by_heuristic(self) -> None:
         summary = summarize_evaluations(

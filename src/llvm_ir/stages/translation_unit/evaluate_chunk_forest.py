@@ -23,7 +23,11 @@ from llvm_ir.heuristics.translation_unit.chunk_forest import (
     mine_chunks,
     select_paths,
 )
-from llvm_ir.stages.function_search.pass_search import require_tools
+from llvm_ir.stages.function_search.pass_search import (
+    LLVMCommandError,
+    apply_pass_sequence,
+    require_tools,
+)
 from llvm_ir.stages.translation_unit.evaluate import (
     summarize_evaluations,
     write_translation_unit_bitcodes,
@@ -59,6 +63,55 @@ def group_results_by_benchmark(
     for result in results:
         grouped[benchmark_id_from_function_name(result.function)].append(result)
     return dict(sorted(grouped.items()))
+
+
+def find_crashing_passes(
+    bitcode_path: Path,
+    function_results: list[FunctionPassResult],
+    workdir: Path,
+) -> set[str]:
+    """Return passes that crash ``opt`` on this benchmark when run standalone.
+
+    Some LLVM passes segfault on specific whole-TU bitcode (for example
+    ``loop-bound-split`` on large tensorflow units). When such a pass sits on a
+    prefix shared by most high-value candidates, the prefix cache records the
+    error once and every candidate behind it is skipped, collapsing the search
+    to a couple of real evaluations. Dropping crashing passes before mining lets
+    selection reroute to clean paths.
+    """
+    unique_passes = sorted(
+        {pass_name for result in function_results for pass_name in result.passes}
+    )
+    crashing: set[str] = set()
+    for index, pass_name in enumerate(unique_passes):
+        probe_bc = workdir / f"prevalidate_{index:04d}.bc"
+        try:
+            apply_pass_sequence(bitcode_path, [pass_name], probe_bc)
+        except LLVMCommandError:
+            crashing.add(pass_name)
+        finally:
+            probe_bc.unlink(missing_ok=True)
+    return crashing
+
+
+def filter_passes_from_results(
+    function_results: list[FunctionPassResult],
+    excluded: set[str],
+) -> list[FunctionPassResult]:
+    if not excluded:
+        return function_results
+    filtered = []
+    for result in function_results:
+        kept = [pass_name for pass_name in result.passes if pass_name not in excluded]
+        filtered.append(
+            FunctionPassResult(
+                function=result.function,
+                baseline_size=result.baseline_size,
+                best_size=result.best_size,
+                passes=kept,
+            )
+        )
+    return filtered
 
 
 def _single_chunk_pool(chunks: tuple[Chunk, ...], max_length: int) -> list[CandidatePath]:
@@ -185,9 +238,14 @@ def evaluate_chunk_forest_for_benchmark(
     measure_instructions: bool = False,
     instruction_measurement: str = "deferred",
 ) -> tuple[dict[str, Any], list[dict[str, Any]], int]:
-    graph = build_pass_order_graph(function_results, benchmark=benchmark, weight_mode="delta")
     with tempfile.TemporaryDirectory(prefix="llvm-ir-tu-chunk-forest-") as tmp_str:
         workdir = Path(tmp_str)
+        crashing_passes: set[str] = set()
+        if getattr(args, "prevalidate_passes", True):
+            crashing_passes = find_crashing_passes(bitcode_path, function_results, workdir)
+            if crashing_passes:
+                function_results = filter_passes_from_results(function_results, crashing_passes)
+        graph = build_pass_order_graph(function_results, benchmark=benchmark, weight_mode="delta")
         deferred_instructions = measure_instructions and instruction_measurement == "deferred"
         if measure_instructions:
             baseline_size, baseline_instruction_count = measure_text_and_instruction_count(bitcode_path, workdir)
@@ -262,6 +320,7 @@ def evaluate_chunk_forest_for_benchmark(
             "top_chunks": [],
             "wave2_pool_available": 0,
             "wave2_skipped": False,
+            "crashing_passes": sorted(crashing_passes),
         }
         mined_values = {index: chunk.weight for index, chunk in enumerate(chunks)}
         wave1, trie, picked = select_paths(
@@ -310,9 +369,11 @@ def evaluate_chunk_forest_for_benchmark(
                 1 for candidate in pool if candidate.passes not in evaluated_paths
             )
             common["wave2_skipped"] = common["wave2_pool_available"] == 0
-            wave2_limit = 0
-            if args.max_real_evals_per_benchmark:
-                wave2_limit = max(0, args.max_real_evals_per_benchmark - (len(trie) - 1))
+            # select_paths enforces the cap against the *shared* trie it is seeded
+            # with (`len(trie) - 1` already counts wave-1 nodes), so the global
+            # budget is passed through directly. Subtracting wave-1 nodes here too
+            # would charge them twice and starve wave two.
+            wave2_limit = args.max_real_evals_per_benchmark
             wave2, _trie2, _picked2 = select_paths(
                 pool,
                 chunks,
@@ -508,6 +569,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--lambda-cache", type=float, default=0.0)
     parser.add_argument("--gamma-diversity", type=float, default=0.5)
     parser.add_argument("--max-real-evals-per-benchmark", type=int, default=0)
+    parser.add_argument(
+        "--prevalidate-passes",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Probe each pass on the benchmark bitcode and drop ones that crash "
+        "opt before mining chunks (avoids a crashing pass poisoning a shared "
+        "prefix and collapsing the search).",
+    )
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--measure-instructions", action="store_true")
     parser.add_argument("--instruction-measurement", choices=["deferred", "eager"], default="deferred")
