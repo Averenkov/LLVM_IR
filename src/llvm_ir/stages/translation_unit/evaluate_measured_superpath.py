@@ -21,6 +21,7 @@ from llvm_ir.heuristics.translation_unit.measured_superpath import (
     vertex_budget_paths,
 )
 from llvm_ir.stages.function_search.pass_search import optimize_oz, require_tools
+from llvm_ir.stages.translation_unit.measure_cache import MeasureCache
 from llvm_ir.stages.translation_unit.evaluate import (
     summarize_evaluations,
     write_translation_unit_bitcodes,
@@ -93,7 +94,7 @@ def _empty_row(benchmark, bitcode_path, baseline_size, oz_size, baseline_instr, 
 
 
 def _evaluate(candidates, *, benchmark, bitcode_path, workdir, prefix_cache, wave, offset,
-              budget, baseline_size, oz_size, baseline_instr, oz_instr, excluded):
+              budget, baseline_size, oz_size, baseline_instr, oz_instr, excluded, size_cache=None):
     rows: list[dict[str, Any]] = []
     evaluated: list[list[str]] = []
     for local_index, passes in enumerate(candidates):
@@ -101,7 +102,7 @@ def _evaluate(candidates, *, benchmark, bitcode_path, workdir, prefix_cache, wav
             continue
         if budget > 0 and (len(prefix_cache) - 1) >= budget:
             break
-        result = evaluate_candidate_with_prefix_cache(list(passes), workdir, prefix_cache, measure_instructions=False)
+        result = evaluate_candidate_with_prefix_cache(list(passes), workdir, prefix_cache, measure_instructions=False, size_cache=size_cache)
         rows.append(_make_row(benchmark, bitcode_path, offset + local_index, list(passes), result,
                               baseline_size, oz_size, baseline_instr, oz_instr, wave))
         evaluated.append(list(passes))
@@ -157,6 +158,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         if measure_instructions:
             prefix_cache[()]["instruction_count"] = baseline_instr
 
+        cache = MeasureCache(getattr(args, "measure_cache_dir", None), bitcode_path)
         budget = args.max_real_evals_per_benchmark
         excluded: set[tuple[str, ...]] = set()
 
@@ -175,7 +177,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
             selected, benchmark=benchmark, bitcode_path=bitcode_path, workdir=workdir,
             prefix_cache=prefix_cache, wave=1, offset=0, budget=budget,
             baseline_size=baseline_size, oz_size=oz_size, baseline_instr=baseline_instr,
-            oz_instr=oz_instr, excluded=excluded,
+            oz_instr=oz_instr, excluded=excluded, size_cache=cache,
         )
         phase1_evals = len(prefix_cache) - 1
 
@@ -211,7 +213,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
                 cand = concat_segments(segments[i], segments[j])[: args.super_max_length]
                 if not cand or tuple(cand) in excluded:
                     continue
-                result = evaluate_candidate_with_prefix_cache(list(cand), workdir, prefix_cache, measure_instructions=False)
+                result = evaluate_candidate_with_prefix_cache(list(cand), workdir, prefix_cache, measure_instructions=False, size_cache=cache)
                 edge_rows.append(_make_row(benchmark, bitcode_path, len(rows1) + len(edge_rows), list(cand),
                                            result, baseline_size, oz_size, baseline_instr, oz_instr, 2))
                 excluded.add(tuple(cand))
@@ -264,7 +266,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         instruction_eval_cost = 0
         if measure_instructions and baseline_instr is not None and best_row["best_passes"]:
             instr_result, instruction_eval_cost = measure_deferred_candidate_instructions(
-                list(best_row["best_passes"]), workdir, prefix_cache
+                list(best_row["best_passes"]), workdir, prefix_cache, size_cache=cache
             )
             best_row["best_instruction_count"] = instr_result["best_instruction_count"]
             best_row["best_instruction_prefix_len"] = instr_result["best_instruction_prefix_len"]
@@ -277,6 +279,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
         best_row["instruction_eval_cost"] = instruction_eval_cost
         for row in candidate_rows:
             row.update(common)
+        cache.flush()
         return best_row, candidate_rows, len(prefix_cache)
 
 
@@ -370,6 +373,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--super-lengths", default="2,3,4,5", help="Super-path segment counts to emit.")
     parser.add_argument("--max-real-evals-per-benchmark", type=int, default=0)
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument(
+        "--measure-cache-dir",
+        default=".measure_cache",
+        help="Persistent cross-run cache of (TU, passes) -> .text/instructions. Speeds up repeated runs.",
+    )
+    parser.add_argument(
+        "--no-measure-cache",
+        dest="measure_cache_dir",
+        action="store_const",
+        const=None,
+        help="Disable the persistent measurement cache.",
+    )
     parser.add_argument("--prevalidate-passes", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--measure-instructions", action="store_true")

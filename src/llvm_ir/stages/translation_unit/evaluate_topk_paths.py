@@ -485,6 +485,7 @@ def evaluate_candidate_with_prefix_cache(
     prefix_cache: dict[tuple[str, ...], dict[str, Any]],
     *,
     measure_instructions: bool = False,
+    size_cache: Any = None,
 ) -> dict[str, Any]:
     baseline = prefix_cache[()]
     current_key: tuple[str, ...] = ()
@@ -510,14 +511,24 @@ def evaluate_candidate_with_prefix_cache(
             output_bc = workdir / f"prefix_{len(prefix_cache):05d}.bc"
             try:
                 apply_pass_sequence(Path(parent["bc"]), [pass_name], output_bc)
-                if measure_instructions:
-                    size, instruction_count = measure_text_and_instruction_count(
-                        output_bc,
-                        workdir,
-                    )
+                # Cross-run cache hit: skip llc/llvm-size (the dominant cost). The
+                # .bc is still produced above so child prefixes can extend it.
+                cached_size = size_cache.get_size(next_key) if size_cache is not None else None
+                cached_instr = size_cache.get_instr(next_key) if size_cache is not None else None
+                if cached_size is not None and (not measure_instructions or cached_instr is not None):
+                    size = cached_size
+                    instruction_count = cached_instr if measure_instructions else None
                 else:
-                    size = measure_text_size(output_bc, workdir)
-                    instruction_count = None
+                    if measure_instructions:
+                        size, instruction_count = measure_text_and_instruction_count(
+                            output_bc,
+                            workdir,
+                        )
+                    else:
+                        size = measure_text_size(output_bc, workdir)
+                        instruction_count = None
+                    if size_cache is not None:
+                        size_cache.put(next_key, size, instruction_count)
                 entry = {
                     "bc": str(output_bc),
                     "size": size,
@@ -581,6 +592,7 @@ def measure_deferred_candidate_instructions(
     passes: list[str],
     workdir: Path,
     prefix_cache: dict[tuple[str, ...], dict[str, Any]],
+    size_cache: Any = None,
 ) -> tuple[dict[str, Any], int]:
     baseline_instruction_count = prefix_cache[()].get("instruction_count")
     if baseline_instruction_count is None:
@@ -599,11 +611,17 @@ def measure_deferred_candidate_instructions(
         if entry is None or entry.get("error"):
             break
         if entry.get("instruction_count") is None:
-            entry["instruction_count"] = measure_machine_instruction_count(
-                Path(entry["bc"]),
-                workdir,
-            )
-            instruction_eval_cost += 1
+            cached_instr = size_cache.get_instr(next_key) if size_cache is not None else None
+            if cached_instr is not None:
+                entry["instruction_count"] = cached_instr
+            else:
+                entry["instruction_count"] = measure_machine_instruction_count(
+                    Path(entry["bc"]),
+                    workdir,
+                )
+                instruction_eval_cost += 1
+                if size_cache is not None:
+                    size_cache.put(next_key, int(entry["size"]), int(entry["instruction_count"]))
         current_key = next_key
         final_instruction_count = int(entry["instruction_count"])
         if final_instruction_count < best_instruction_count:
