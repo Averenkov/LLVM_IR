@@ -12,15 +12,26 @@ best rows, no candidate dump) live next to this file.
 
 ## Headline (post_bugfix_random)
 
-| Heuristic | weighted best `.text` | weighted best instr | beats `-Oz` | total best Δ | mean real evals |
-|---|---:|---:|---:|---:|---:|
-| **measured_superpath** | **7.4816%** | **8.7662%** | **25/30** | **77292** | 1254 |
-| random_walk_1000 | 6.9315% | 8.0048% | 23/30 | 71609 | ~1000 |
-| chunk_forest (minsup1) | 6.6303% | 7.9388% | 23/30 | 68497 | 234 |
-| flow_paths | 6.4036% | 7.29% | 23/30 | 66155 | 108 |
-| bucket_dag_teacher | 6.3853% | 7.35% | 21/30 | 65966 | 150 |
-| function_sequences (baseline) | 6.2719% | 7.24% | 23/30 | 64795 | 56 |
-| `-Oz` (baseline) | 1.7836% | — | — | — | — |
+Two averages are reported. **Weighted (micro)** = `Σ best_delta / Σ baseline` --
+benchmarks weighted by size; this is the primary metric. **Macro** =
+`mean(best_delta / baseline)` over benchmarks -- each benchmark weighted equally
+(inflated by small TUs that have large relative gains).
+
+| Heuristic | wtd `.text` | macro `.text` | wtd instr | macro instr | beats `-Oz` | total Δ |
+|---|---:|---:|---:|---:|---:|---:|
+| **measured_superpath** | **7.4816%** | 11.901% | **8.7662%** | 13.873% | **25/30** | 77292 |
+| random_walk_2000 | 6.9925% | — | 8.14% | — | 23/30 | 72239 |
+| random_walk_1000 | 6.9315% | 11.460% | 8.0048% | 13.390% | 23/30 | 71609 |
+| chunk_forest (minsup1) | 6.6303% | 11.548% | 7.9388% | 13.844% | 23/30 | 68497 |
+| flow_paths | 6.4036% | 10.138% | 7.29% | 11.796% | 23/30 | 66155 |
+| bucket_dag_teacher | 6.3853% | 10.719% | 7.35% | 12.812% | 21/30 | 65966 |
+| function_sequences (baseline) | 6.2719% | 11.150% | 7.24% | 12.863% | 23/30 | 64795 |
+| `-Oz` (baseline) | 1.7836% | — | — | — | — | — |
+
+Per-benchmark `.text` improvement ranges roughly 0–35%. By the weighted (micro)
+metric measured_superpath leads on every column. By macro the order between the
+mid heuristics shifts (chunk_forest > random_walk_1000), since macro over-weights
+small benchmarks -- but measured_superpath still leads both.
 
 On the consistent dataset **measured_superpath leads on every metric**
 (+0.55 pp `.text`, +0.76 pp instructions vs the next-best random_walk) and is
