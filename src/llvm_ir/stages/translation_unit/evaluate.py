@@ -245,6 +245,18 @@ def summarize_evaluations(rows: list[dict[str, Any]]) -> dict[str, Any]:
             if int(row["best_size"]) < int(row["oz_size"])
         ]
         failed = [row for row in items if row.get("error")]
+        # Per-benchmark percentages (each benchmark weighted equally) for the
+        # macro / mean-of-percent average, alongside the size-weighted micro one.
+        best_percents = [
+            100.0 * int(row["best_delta"]) / int(row["baseline_size"])
+            for row in items
+            if int(row["baseline_size"]) > 0
+        ]
+        final_percents = [
+            100.0 * int(row["final_delta"]) / int(row["baseline_size"])
+            for row in items
+            if int(row["baseline_size"]) > 0
+        ]
         summary[heuristic] = {
             "benchmarks": len(items),
             "failed": len(failed),
@@ -262,6 +274,10 @@ def summarize_evaluations(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 if total_baseline
                 else 0.0
             ),
+            "macro_final_percent": (sum(final_percents) / len(final_percents) if final_percents else 0.0),
+            "macro_best_percent": (sum(best_percents) / len(best_percents) if best_percents else 0.0),
+            "min_best_percent": (min(best_percents) if best_percents else 0.0),
+            "max_best_percent": (max(best_percents) if best_percents else 0.0),
             "oz_available": len(oz_rows),
             "beats_oz_best": len(beats_oz),
             "beats_oz_best_percent": (

@@ -1291,6 +1291,11 @@ def add_instruction_summary(
             if row.get("best_instruction_count") is not None
             and int(row["best_instruction_count"]) < int(row["oz_instruction_count"])
         ]
+        best_instr_percents = [
+            100.0 * int(row.get("best_instruction_delta") or 0) / int(row["baseline_instruction_count"])
+            for row in items
+            if int(row["baseline_instruction_count"]) > 0
+        ]
         summary.setdefault(heuristic, {})
         summary[heuristic].update(
             {
@@ -1306,6 +1311,9 @@ def add_instruction_summary(
                     100.0 * total_best_delta / total_baseline
                     if total_baseline
                     else 0.0
+                ),
+                "macro_best_instruction_percent": (
+                    sum(best_instr_percents) / len(best_instr_percents) if best_instr_percents else 0.0
                 ),
                 "oz_instruction_available": len(oz_rows),
                 "beats_oz_best_instruction": len(beats_oz),
