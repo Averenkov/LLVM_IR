@@ -34,7 +34,7 @@ def segment_tree_merge(
     """
     nodes: list[tuple[tuple[str, ...], int]] = [(tuple(seq), int(size)) for seq, size in leaves]
     if not nodes:
-        return ((), 0), 0
+        return ((), None), 0  # no leaves -> caller falls back to baseline
     eval_count = 0
     while len(nodes) > 1:
         next_level: list[tuple[tuple[str, ...], int]] = []

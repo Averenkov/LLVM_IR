@@ -65,7 +65,7 @@ def beam_segment_tree_merge(
     """Bottom-up beam merge. Returns ((best_seq, best_size), eval_count)."""
     nodes = [list(leaf) for leaf in leaves if leaf]
     if not nodes:
-        return ((), 0), 0
+        return ((), None), 0  # no leaves -> caller falls back to baseline
     eval_count = 0
 
     def top(cands: list[tuple[tuple[str, ...], int]]) -> list[tuple[tuple[str, ...], int]]:

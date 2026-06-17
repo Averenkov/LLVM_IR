@@ -122,6 +122,9 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
             leaves, graph.edge_weight, measure,
             beam=args.beam, concat_cap=args.concat_cap, max_length=args.max_length,
         )
+        # No strong links / no improvement -> baseline (delta 0), never size 0.
+        if not best_passes or best_size is None:
+            best_passes, best_size = (), baseline_size
 
         extra = {
             "graph_nodes": len(graph.nodes), "strong_links": len(links),

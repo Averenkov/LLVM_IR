@@ -139,6 +139,8 @@ def evaluate_segment_tree_for_benchmark(benchmark, function_results, bitcode_pat
         (best_passes, best_size), merge_evals = segment_tree_merge(
             leaves, measure, max_length=args.max_length
         )
+        if not best_passes or best_size is None:
+            best_passes, best_size = (), baseline_size
 
         extra = {
             "kept_edges": len(edges), "graph_nodes": len(nodes), "size_scale": round(size_scale, 3),
