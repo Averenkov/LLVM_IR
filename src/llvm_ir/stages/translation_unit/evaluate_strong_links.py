@@ -18,6 +18,7 @@ from typing import Any
 from llvm_ir.heuristics.translation_unit.measured_superpath import node_support
 from llvm_ir.heuristics.translation_unit.strong_links import (
     beam_segment_tree_merge,
+    enumerate_all_orderings,
     mine_strong_links,
 )
 from llvm_ir.stages.function_search.pass_search import optimize_oz, require_tools
@@ -141,9 +142,25 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
         if not best_passes or best_size is None:
             best_passes, best_size = (), baseline_size
 
+        # Tiny graphs: exhaustively try EVERY ordered subsequence and keep the
+        # global best (exact search where it is tractable).
+        exhaustive_evals = 0
+        if len(graph.nodes) <= args.tiny_threshold:
+            orderings = enumerate_all_orderings(
+                sorted(graph.nodes), max_length=args.max_length, cap=args.exhaustive_cap
+            )
+            if orderings is not None:
+                before = len(prefix_cache) - 1
+                for seq in orderings:
+                    bs, bp = measure(seq)
+                    if bs < best_size:
+                        best_size, best_passes = bs, bp
+                exhaustive_evals = (len(prefix_cache) - 1) - before
+
         extra = {
             "graph_nodes": len(graph.nodes), "strong_links": n_strong, "leaves": len(links),
             "small_mode": small, "eff_beam": eff_beam, "eff_concat_cap": eff_concat,
+            "exhaustive_evals": exhaustive_evals,
             "crashing_passes": sorted(crashing),
             "leaf_real_evals": leaf_evals, "merge_real_evals": merge_evals,
             "real_evals": len(prefix_cache) - 1,
@@ -251,6 +268,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--small-threshold", type=int, default=20, help="Graph nodes <= this => 'small' mode (squeeze harder).")
     parser.add_argument("--small-beam", type=int, default=50, help="Top-K beam for small graphs.")
     parser.add_argument("--small-concat-cap", type=int, default=0, help="Concatenations/merge for small graphs (0 = unlimited).")
+    parser.add_argument("--tiny-threshold", type=int, default=6, help="Graph nodes <= this => exhaustively try every ordered subsequence.")
+    parser.add_argument("--exhaustive-cap", type=int, default=5000, help="Max orderings enumerated for a tiny graph (else fall back to tree).")
     parser.add_argument("--max-length", type=int, default=16, help="Cap on merged-sequence length.")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--prevalidate-passes", action=argparse.BooleanOptionalAction, default=True)

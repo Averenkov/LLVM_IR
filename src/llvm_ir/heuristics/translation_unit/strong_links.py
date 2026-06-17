@@ -53,6 +53,40 @@ MeasureFn = Callable[[tuple[str, ...]], tuple[int, tuple[str, ...]]]
 EdgeWeightFn = Callable[[str, str], int]
 
 
+def enumerate_all_orderings(
+    passes: list[str],
+    *,
+    max_length: int,
+    cap: int,
+) -> list[tuple[str, ...]] | None:
+    """All simple (no-repeat) ordered subsequences of ``passes``, length 1..max_length.
+
+    This is the exact "try every subsequence" set for a tiny pass alphabet. Returns
+    ``None`` (bail) if the count would exceed ``cap`` -- the caller then falls back
+    to the beam tree, since exhaustive enumeration is only tractable for tiny graphs.
+    """
+    items = sorted(set(passes))
+    limit = min(max_length, len(items))
+    result: list[tuple[str, ...]] = []
+
+    def dfs(prefix: list[str], used: set[str]) -> bool:
+        for p in items:
+            if p in used:
+                continue
+            seq = prefix + [p]
+            result.append(tuple(seq))
+            if len(result) > cap:
+                return False
+            if len(seq) < limit:
+                if not dfs(seq, used | {p}):
+                    return False
+        return True
+
+    if not dfs([], set()):
+        return None
+    return result
+
+
 def beam_segment_tree_merge(
     leaves: list[list[tuple[tuple[str, ...], int]]],
     edge_weight: EdgeWeightFn,

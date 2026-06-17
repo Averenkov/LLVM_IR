@@ -4,6 +4,7 @@ import unittest
 
 from llvm_ir.heuristics.translation_unit.strong_links import (
     beam_segment_tree_merge,
+    enumerate_all_orderings,
     mine_strong_links,
 )
 from llvm_ir.stages.translation_unit.contracts import FunctionPassResult
@@ -79,6 +80,29 @@ class BeamMergeTests(unittest.TestCase):
         )
         self.assertEqual((seq, size), (("a",), 900))
         self.assertEqual(evals, 0)
+
+
+class EnumerateOrderingsTests(unittest.TestCase):
+    def test_all_orderings_of_three(self) -> None:
+        out = enumerate_all_orderings(["a", "b", "c"], max_length=3, cap=1000)
+        # 3 (len1) + 6 (len2) + 6 (len3) = 15, all simple (no repeats)
+        self.assertEqual(len(out), 15)
+        self.assertIn(("a",), out)
+        self.assertIn(("c", "a", "b"), out)
+        self.assertTrue(all(len(set(s)) == len(s) for s in out))  # no repeats
+
+    def test_respects_max_length(self) -> None:
+        out = enumerate_all_orderings(["a", "b", "c"], max_length=2, cap=1000)
+        self.assertEqual(len(out), 3 + 6)  # len1 + len2 only
+        self.assertTrue(all(len(s) <= 2 for s in out))
+
+    def test_cap_bails_to_none(self) -> None:
+        # 7 passes, all lengths -> ~13700 orderings > cap -> None
+        self.assertIsNone(enumerate_all_orderings(list("abcdefg"), max_length=7, cap=5000))
+
+    def test_dedups_input(self) -> None:
+        out = enumerate_all_orderings(["a", "a", "b"], max_length=2, cap=1000)
+        self.assertEqual(len(out), 2 + 2)  # distinct {a,b}: len1=2, len2=2
 
 
 if __name__ == "__main__":
