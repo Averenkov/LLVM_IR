@@ -29,6 +29,7 @@ llvm-ir-eval-tu-function-sequences = "llvm_ir.stages.translation_unit.evaluate_f
 llvm-ir-eval-tu-consensus-subseq = "llvm_ir.stages.translation_unit.evaluate_consensus_subseq:main"
 llvm-ir-eval-tu-measured-superpath = "llvm_ir.stages.translation_unit.evaluate_measured_superpath:main"
 llvm-ir-eval-tu-segment-tree = "llvm_ir.stages.translation_unit.evaluate_segment_tree:main"
+llvm-ir-eval-tu-strong-links = "llvm_ir.stages.translation_unit.evaluate_strong_links:main"
 llvm-ir-run-aggregation = "llvm_ir.scripts.run_aggregation:main"
 llvm-ir-export-aggregation-paths = "llvm_ir.heuristics.aggregation.export_paths:main"
 
