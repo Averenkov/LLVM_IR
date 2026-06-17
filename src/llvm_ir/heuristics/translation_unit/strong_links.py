@@ -92,8 +92,8 @@ def beam_segment_tree_merge(
     edge_weight: EdgeWeightFn,
     measure: MeasureFn,
     *,
-    beam: int = 12,
-    concat_cap: int = 24,
+    beam: int = 24,
+    concat_cap: int = 48,
     max_length: int = 16,
 ) -> tuple[tuple[tuple[str, ...], int], int]:
     """Bottom-up beam merge. Returns ((best_seq, best_size), eval_count)."""
@@ -124,6 +124,9 @@ def beam_segment_tree_merge(
             # edge, ranked by edge weight), then fill the budget with the
             # remaining concatenations ranked by combined child size (cheapest
             # first) -- this explores more subsequences when edges are sparse.
+            # Edge-backed concatenations ranked by edge weight (desc); the rest
+            # ranked by combined child quality (smallest total .text first), so
+            # the budget is spent merging the best sub-results.
             edge_pairs: list[tuple[int, tuple[str, ...]]] = []
             extra_pairs: list[tuple[int, tuple[str, ...]]] = []
             for lseq, lsz in left:
@@ -132,14 +135,24 @@ def beam_segment_tree_merge(
                         continue
                     lr, rl = lseq + rseq, rseq + lseq
                     w1 = edge_weight(lseq[-1], rseq[0])
-                    (edge_pairs if w1 > 0 else extra_pairs).append((w1, lr))
+                    if w1 > 0:
+                        edge_pairs.append((w1, lr))
+                    else:
+                        extra_pairs.append((lsz + rsz, lr))
                     w2 = edge_weight(rseq[-1], lseq[0])
-                    (edge_pairs if w2 > 0 else extra_pairs).append((w2, rl))
+                    if w2 > 0:
+                        edge_pairs.append((w2, rl))
+                    else:
+                        extra_pairs.append((lsz + rsz, rl))
             edge_pairs.sort(key=lambda item: -item[0])
-            extra_pairs.sort(key=lambda item: len(item[1]))  # shorter combos first
+            extra_pairs.sort(key=lambda item: item[0])  # best (smallest) children first
             ordered: list[tuple[str, ...]] = []
             queued: set[tuple[str, ...]] = set()
-            for _w, combo in edge_pairs + extra_pairs:
+            for _k, combo in edge_pairs:
+                if combo not in queued:
+                    queued.add(combo)
+                    ordered.append(combo)
+            for _k, combo in extra_pairs:
                 if combo not in queued:
                     queued.add(combo)
                     ordered.append(combo)

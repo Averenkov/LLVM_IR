@@ -263,10 +263,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=True,
         help="Add every pass as a single-pass leaf (coverage when strong links are few/none).",
     )
-    parser.add_argument("--beam", type=int, default=12, help="Top-K sequences kept per node (large graphs).")
-    parser.add_argument("--concat-cap", type=int, default=24, help="Max concatenations per merge (large graphs).")
+    parser.add_argument("--beam", type=int, default=24, help="Top-K sequences kept per node (large graphs).")
+    parser.add_argument("--concat-cap", type=int, default=48, help="Max concatenations per merge (large graphs).")
     parser.add_argument("--small-threshold", type=int, default=20, help="Graph nodes <= this => 'small' mode (squeeze harder).")
-    parser.add_argument("--small-beam", type=int, default=50, help="Top-K beam for small graphs.")
+    parser.add_argument("--small-beam", type=int, default=64, help="Top-K beam for small graphs.")
     parser.add_argument("--small-concat-cap", type=int, default=0, help="Concatenations/merge for small graphs (0 = unlimited).")
     parser.add_argument("--tiny-threshold", type=int, default=6, help="Graph nodes <= this => exhaustively try every ordered subsequence.")
     parser.add_argument("--exhaustive-cap", type=int, default=5000, help="Max orderings enumerated for a tiny graph (else fall back to tree).")
