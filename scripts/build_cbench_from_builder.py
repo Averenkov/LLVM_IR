@@ -18,6 +18,11 @@ from pathlib import Path
 SRC = Path.home() / "diplom/dataset-builder/input_functions_bc"
 DST_FUNCS = Path("datasets/cbench_v1_functions_bc")
 DST_TU = Path("experiments/translation_unit_bitcode/cbench_v1")
+# Full per-benchmark bitcode as served by CompilerGym (preferred TU source).
+SITE_DATA = (
+    Path.home()
+    / ".local/share/compiler_gym/llvm-v0/benchmark/cbench-v1/contents/cBench-v1"
+)
 
 
 def main() -> int:
@@ -36,12 +41,20 @@ def main() -> int:
 
     for bench, files in sorted(by_bench.items()):
         out = DST_TU / f"cbench-v1_{bench}.bc"
+        site = SITE_DATA / f"{bench}.bc"
+        if site.exists():
+            # Preferred: the real full-benchmark bitcode (all functions), matching
+            # the autotune setup (per-function dataset = top-20%, TU = full module).
+            shutil.copyfile(site, out)
+            print(f"  copied cbench-v1_{bench}.bc  (full TU from site-data, {out.stat().st_size} bytes)")
+            continue
+        # Fallback: reconstruct from top-20% per-function .bc via llvm-link.
         cmd = ["llvm-link", "-o", str(out), *[str(f) for f in files]]
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             print(f"  [FAIL] {bench} ({len(files)} funcs): {proc.stderr.strip()[:160]}")
             continue
-        print(f"  linked cbench-v1_{bench}.bc  ({len(files)} funcs, {out.stat().st_size} bytes)")
+        print(f"  linked cbench-v1_{bench}.bc  (llvm-link top-20%, {out.stat().st_size} bytes)")
     return 0
 
 
