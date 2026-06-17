@@ -94,7 +94,8 @@ def _empty_row(benchmark, bitcode_path, baseline_size, oz_size, baseline_instr, 
 
 
 def _evaluate(candidates, *, benchmark, bitcode_path, workdir, prefix_cache, wave, offset,
-              budget, baseline_size, oz_size, baseline_instr, oz_instr, excluded, size_cache=None):
+              budget, baseline_size, oz_size, baseline_instr, oz_instr, excluded, size_cache=None,
+              measure_instr=False):
     rows: list[dict[str, Any]] = []
     evaluated: list[list[str]] = []
     for local_index, passes in enumerate(candidates):
@@ -102,7 +103,7 @@ def _evaluate(candidates, *, benchmark, bitcode_path, workdir, prefix_cache, wav
             continue
         if budget > 0 and (len(prefix_cache) - 1) >= budget:
             break
-        result = evaluate_candidate_with_prefix_cache(list(passes), workdir, prefix_cache, measure_instructions=False, size_cache=size_cache)
+        result = evaluate_candidate_with_prefix_cache(list(passes), workdir, prefix_cache, measure_instructions=measure_instr, size_cache=size_cache)
         rows.append(_make_row(benchmark, bitcode_path, offset + local_index, list(passes), result,
                               baseline_size, oz_size, baseline_instr, oz_instr, wave))
         evaluated.append(list(passes))
@@ -113,7 +114,14 @@ def _evaluate(candidates, *, benchmark, bitcode_path, workdir, prefix_cache, wav
 def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitcode_path, *, args):
     with tempfile.TemporaryDirectory(prefix="llvm-ir-msp-") as tmp_str:
         workdir = Path(tmp_str)
-        measure_instructions = args.measure_instructions
+        # Objective: optimize either .text size (default) or machine instruction
+        # count. Optimizing instructions needs eager per-prefix instruction counts.
+        opt_instr = getattr(args, "objective", "size") == "instructions"
+        measure_instructions = bool(args.measure_instructions) or opt_instr
+
+        def metric(row) -> float:
+            value = row.get("best_instruction_delta") if opt_instr else row.get("best_delta")
+            return float(value or 0)
 
         crashing: set[str] = set()
         if getattr(args, "prevalidate_passes", True):
@@ -177,13 +185,14 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
             selected, benchmark=benchmark, bitcode_path=bitcode_path, workdir=workdir,
             prefix_cache=prefix_cache, wave=1, offset=0, budget=budget,
             baseline_size=baseline_size, oz_size=oz_size, baseline_instr=baseline_instr,
-            oz_instr=oz_instr, excluded=excluded, size_cache=cache,
+            oz_instr=oz_instr, excluded=excluded, size_cache=cache, measure_instr=opt_instr,
         )
         phase1_evals = len(prefix_cache) - 1
 
-        # Super-vertices = measured segments; bias sampling by measured profit.
+        # Super-vertices = measured segments; bias sampling by measured profit
+        # (objective metric: .text-size delta or instruction-count delta).
         segments = [tuple(r["passes"]) for r in rows1]
-        profits = [float(r["best_delta"]) for r in rows1]
+        profits = [metric(r) for r in rows1]
         floor = 1.0
         sample_w: dict[int, float] = {i: max(profits[i], 0.0) + floor for i in range(len(segments))}
 
@@ -213,11 +222,12 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
                 cand = concat_segments(segments[i], segments[j])[: args.super_max_length]
                 if not cand or tuple(cand) in excluded:
                     continue
-                result = evaluate_candidate_with_prefix_cache(list(cand), workdir, prefix_cache, measure_instructions=False, size_cache=cache)
-                edge_rows.append(_make_row(benchmark, bitcode_path, len(rows1) + len(edge_rows), list(cand),
-                                           result, baseline_size, oz_size, baseline_instr, oz_instr, 2))
+                result = evaluate_candidate_with_prefix_cache(list(cand), workdir, prefix_cache, measure_instructions=opt_instr, size_cache=cache)
+                row = _make_row(benchmark, bitcode_path, len(rows1) + len(edge_rows), list(cand),
+                                result, baseline_size, oz_size, baseline_instr, oz_instr, 2)
+                edge_rows.append(row)
                 excluded.add(tuple(cand))
-                edge_profit = float(baseline_size - int(result["best_size"]))
+                edge_profit = metric(row)
                 super_edges[(i, j)] = edge_profit
                 # Learn: reward vertices that chain synergistically beyond their best single.
                 bonus = max(edge_profit - max(profits[i], profits[j]), 0.0)
@@ -239,7 +249,7 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
                 supercands, benchmark=benchmark, bitcode_path=bitcode_path, workdir=workdir,
                 prefix_cache=prefix_cache, wave=3, offset=len(rows1) + len(edge_rows), budget=budget,
                 baseline_size=baseline_size, oz_size=oz_size, baseline_instr=baseline_instr,
-                oz_instr=oz_instr, excluded=excluded,
+                oz_instr=oz_instr, excluded=excluded, size_cache=cache, measure_instr=opt_instr,
             )
         phase3_evals = (len(prefix_cache) - 1) - phase1_evals - phase2_evals
 
@@ -256,15 +266,17 @@ def evaluate_measured_superpath_for_benchmark(benchmark, function_results, bitco
             "crashing_passes": sorted(crashing),
             "phase1_real_evals": phase1_evals, "phase2_real_evals": phase2_evals,
             "phase3_real_evals": phase3_evals, "real_evals": len(prefix_cache) - 1,
-            "waves": args.waves,
+            "waves": args.waves, "objective": args.objective,
         }
         if candidate_rows:
-            best_row = dict(max(candidate_rows, key=lambda r: (r["best_delta"], r["final_delta"], -r["candidate_index"])))
+            best_row = dict(max(candidate_rows, key=lambda r: (metric(r), r["final_delta"], -r["candidate_index"])))
         else:
             best_row = _empty_row(benchmark, bitcode_path, baseline_size, oz_size, baseline_instr, oz_instr)
 
         instruction_eval_cost = 0
-        if measure_instructions and baseline_instr is not None and best_row["best_passes"]:
+        # In instruction-objective mode instructions are already measured per
+        # prefix (eager), so the deferred pass is only needed for size-objective runs.
+        if not opt_instr and measure_instructions and baseline_instr is not None and best_row["best_passes"]:
             instr_result, instruction_eval_cost = measure_deferred_candidate_instructions(
                 list(best_row["best_passes"]), workdir, prefix_cache, size_cache=cache
             )
@@ -354,6 +366,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bitcode-dir", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--waves", type=int, default=2)
+    parser.add_argument(
+        "--objective",
+        choices=["size", "instructions"],
+        default="size",
+        help="Optimize .text size (default) or machine instruction count. "
+        "Instruction mode measures instructions eagerly per prefix.",
+    )
     parser.add_argument("--gen-budget", type=int, default=2000, help="Paths generated in phase 1 (n*k).")
     parser.add_argument("--select-count", type=int, default=250, help="Top generated paths measured as super-vertices.")
     parser.add_argument("--segment-nodes", type=int, default=4, help="Passes per phase-1 path (length+1).")
