@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from llvm_ir.heuristics.translation_unit.measured_superpath import node_support
 from llvm_ir.heuristics.translation_unit.strong_links import (
     beam_segment_tree_merge,
     mine_strong_links,
@@ -111,6 +112,15 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
 
         # ---- Strong links (leaves) ----
         links = mine_strong_links(function_results, min_support=args.min_support, max_links=args.max_links)
+        # Augment with single passes: guarantees coverage for benchmarks with few
+        # or no strong links (every pass becomes a usable leaf the tree can build on).
+        if getattr(args, "add_singles", True):
+            support = node_support(function_results)
+            have = {seq for seq, _ in links}
+            for pass_name in sorted(graph.nodes):
+                if (pass_name,) not in have:
+                    links.append(((pass_name,), support.get(pass_name, 1)))
+        n_strong = sum(1 for seq, _ in links if len(seq) >= 2)
         leaves: list[list[tuple[tuple[str, ...], int]]] = []
         for seq, _weight in links:
             best_size, best_passes = measure(seq)
@@ -127,7 +137,7 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
             best_passes, best_size = (), baseline_size
 
         extra = {
-            "graph_nodes": len(graph.nodes), "strong_links": len(links),
+            "graph_nodes": len(graph.nodes), "strong_links": n_strong, "leaves": len(links),
             "beam": args.beam, "crashing_passes": sorted(crashing),
             "leaf_real_evals": leaf_evals, "merge_real_evals": merge_evals,
             "real_evals": len(prefix_cache) - 1,
@@ -224,8 +234,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--min-support", type=int, default=2, help="Min functions a strong link must occur in.")
     parser.add_argument("--max-links", type=int, default=200, help="Max strong links kept as leaves (top by weight).")
-    parser.add_argument("--beam", type=int, default=10, help="Top-K sequences kept per tree node.")
-    parser.add_argument("--concat-cap", type=int, default=12, help="Max graph-guided concatenations measured per merge.")
+    parser.add_argument(
+        "--add-singles",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Add every pass as a single-pass leaf (coverage when strong links are few/none).",
+    )
+    parser.add_argument("--beam", type=int, default=12, help="Top-K sequences kept per tree node.")
+    parser.add_argument("--concat-cap", type=int, default=24, help="Max concatenations measured per merge (graph edges first, then by size).")
     parser.add_argument("--max-length", type=int, default=16, help="Cap on merged-sequence length.")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--prevalidate-passes", action=argparse.BooleanOptionalAction, default=True)

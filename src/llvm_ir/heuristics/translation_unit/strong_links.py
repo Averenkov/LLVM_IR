@@ -58,8 +58,8 @@ def beam_segment_tree_merge(
     edge_weight: EdgeWeightFn,
     measure: MeasureFn,
     *,
-    beam: int = 10,
-    concat_cap: int = 12,
+    beam: int = 12,
+    concat_cap: int = 24,
     max_length: int = 16,
 ) -> tuple[tuple[tuple[str, ...], int], int]:
     """Bottom-up beam merge. Returns ((best_seq, best_size), eval_count)."""
@@ -86,23 +86,30 @@ def beam_segment_tree_merge(
             left, right = nodes[i], nodes[i + 1]
             candidates = list(left) + list(right)
             seen = {seq for seq, _ in candidates}
-            # graph-guided concatenations
-            pairs: list[tuple[int, tuple[str, ...]]] = []
-            for lseq, _ls in left:
-                for rseq, _rs in right:
-                    if lseq and rseq:
-                        w1 = edge_weight(lseq[-1], rseq[0])
-                        if w1 > 0:
-                            pairs.append((w1, lseq + rseq))
-                        w2 = edge_weight(rseq[-1], lseq[0])
-                        if w2 > 0:
-                            pairs.append((w2, rseq + lseq))
-            if not pairs and left and right:
-                # fallback: best-of-each, both orders, even without a graph edge
-                a, b = left[0][0], right[0][0]
-                pairs = [(0, a + b), (0, b + a)]
-            pairs.sort(key=lambda item: -item[0])
-            for _w, combo in pairs[:concat_cap]:
+            # Graph-guided concatenations first (junction is a real order-graph
+            # edge, ranked by edge weight), then fill the budget with the
+            # remaining concatenations ranked by combined child size (cheapest
+            # first) -- this explores more subsequences when edges are sparse.
+            edge_pairs: list[tuple[int, tuple[str, ...]]] = []
+            extra_pairs: list[tuple[int, tuple[str, ...]]] = []
+            for lseq, lsz in left:
+                for rseq, rsz in right:
+                    if not (lseq and rseq):
+                        continue
+                    lr, rl = lseq + rseq, rseq + lseq
+                    w1 = edge_weight(lseq[-1], rseq[0])
+                    (edge_pairs if w1 > 0 else extra_pairs).append((w1, lr))
+                    w2 = edge_weight(rseq[-1], lseq[0])
+                    (edge_pairs if w2 > 0 else extra_pairs).append((w2, rl))
+            edge_pairs.sort(key=lambda item: -item[0])
+            extra_pairs.sort(key=lambda item: len(item[1]))  # shorter combos first
+            ordered: list[tuple[str, ...]] = []
+            queued: set[tuple[str, ...]] = set()
+            for _w, combo in edge_pairs + extra_pairs:
+                if combo not in queued:
+                    queued.add(combo)
+                    ordered.append(combo)
+            for combo in ordered[:concat_cap]:
                 combo = tuple(combo[:max_length])
                 if not combo or combo in seen:
                     continue
