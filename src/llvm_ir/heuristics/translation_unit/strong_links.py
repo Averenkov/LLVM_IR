@@ -109,7 +109,8 @@ def beam_segment_tree_merge(
                 if combo not in queued:
                     queued.add(combo)
                     ordered.append(combo)
-            for combo in ordered[:concat_cap]:
+            cap = concat_cap if concat_cap > 0 else len(ordered)
+            for combo in ordered[:cap]:
                 combo = tuple(combo[:max_length])
                 if not combo or combo in seen:
                     continue

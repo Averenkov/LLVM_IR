@@ -128,9 +128,14 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
         leaf_evals = len(prefix_cache) - 1
 
         # ---- Beam segment-tree merge (graph-guided) ----
+        # Squeeze small benchmarks harder: large beam + (near-)exhaustive merge
+        # when the graph is small (cheap); keep large graphs bounded.
+        small = len(graph.nodes) <= args.small_threshold
+        eff_beam = args.small_beam if small else args.beam
+        eff_concat = args.small_concat_cap if small else args.concat_cap
         (best_passes, best_size), merge_evals = beam_segment_tree_merge(
             leaves, graph.edge_weight, measure,
-            beam=args.beam, concat_cap=args.concat_cap, max_length=args.max_length,
+            beam=eff_beam, concat_cap=eff_concat, max_length=args.max_length,
         )
         # No strong links / no improvement -> baseline (delta 0), never size 0.
         if not best_passes or best_size is None:
@@ -138,7 +143,8 @@ def evaluate_strong_links_for_benchmark(benchmark, function_results, bitcode_pat
 
         extra = {
             "graph_nodes": len(graph.nodes), "strong_links": n_strong, "leaves": len(links),
-            "beam": args.beam, "crashing_passes": sorted(crashing),
+            "small_mode": small, "eff_beam": eff_beam, "eff_concat_cap": eff_concat,
+            "crashing_passes": sorted(crashing),
             "leaf_real_evals": leaf_evals, "merge_real_evals": merge_evals,
             "real_evals": len(prefix_cache) - 1,
         }
@@ -240,8 +246,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=True,
         help="Add every pass as a single-pass leaf (coverage when strong links are few/none).",
     )
-    parser.add_argument("--beam", type=int, default=12, help="Top-K sequences kept per tree node.")
-    parser.add_argument("--concat-cap", type=int, default=24, help="Max concatenations measured per merge (graph edges first, then by size).")
+    parser.add_argument("--beam", type=int, default=12, help="Top-K sequences kept per node (large graphs).")
+    parser.add_argument("--concat-cap", type=int, default=24, help="Max concatenations per merge (large graphs).")
+    parser.add_argument("--small-threshold", type=int, default=20, help="Graph nodes <= this => 'small' mode (squeeze harder).")
+    parser.add_argument("--small-beam", type=int, default=50, help="Top-K beam for small graphs.")
+    parser.add_argument("--small-concat-cap", type=int, default=0, help="Concatenations/merge for small graphs (0 = unlimited).")
     parser.add_argument("--max-length", type=int, default=16, help="Cap on merged-sequence length.")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--prevalidate-passes", action=argparse.BooleanOptionalAction, default=True)
