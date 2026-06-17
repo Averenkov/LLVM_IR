@@ -334,10 +334,15 @@ def build_report(groups, bitcode_paths, args) -> dict[str, Any]:
         futures = {executor.submit(_run_one, b, groups[b], bitcode_paths[b], args): b for b in benchmarks}
         done = 0
         for future in as_completed(futures):
-            benchmark, result = future.result()
-            results[benchmark] = result
+            benchmark = futures[future]
+            try:
+                _b, result = future.result()
+                results[benchmark] = result
+            except Exception as exc:  # noqa: BLE001 - one failure must not kill the run
+                print(f"[{done + 1}/{len(benchmarks)}] {benchmark} FAILED, skipped: {type(exc).__name__}: {exc}", flush=True)
             done += 1
-            print(f"[{done}/{len(benchmarks)}] {benchmark} done", flush=True)
+            if benchmark in results:
+                print(f"[{done}/{len(benchmarks)}] {benchmark} done", flush=True)
             assemble()
     return assemble()
 
