@@ -8,3 +8,5 @@ runs/
 .venv/
 .local/
 src/*.egg-info/
+
+*.nohup.log
