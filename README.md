@@ -125,9 +125,9 @@ llvm-ir-build-dataset --max-benchmarks 3 --overwrite
 
 ```bash
 llvm-ir-build-dataset \
-  --benchmark-file ../diplom_LLVM_IR/experiments/benchmark_sets/autotune_stratified_30.csv \
-  --output-dir ./datasets/autotune_stratified_30_functions_bc \
-  --work-dir ./build_workspace/autotune_stratified_30 \
+  --dataset cbench-v1 \
+  --output-dir ./datasets/cbench_v1_functions_bc \
+  --work-dir ./build_workspace/cbench_v1 \
   --overwrite
 ```
 
@@ -171,9 +171,9 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 ```bash
 PYTHONPATH=src python3 -m llvm_ir.stages.function_search.pass_search \
-  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --dataset-dir datasets/cbench_v1_functions_bc \
   --algorithm cem \
-  --limit 30 \
+  --limit 0 \
   --steps 6 \
   --iterations 3 \
   --candidates 8
@@ -206,9 +206,9 @@ prefix внутри цепочки. Для сравнения со старым 
 
 ```bash
 PYTHONPATH=src python3 -m llvm_ir.stages.function_search.pass_search \
-  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --dataset-dir datasets/cbench_v1_functions_bc \
   --algorithm random \
-  --limit 30 \
+  --limit 0 \
   --steps 6 \
   --iterations 3 \
   --candidates 8 \
@@ -289,7 +289,7 @@ PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.path_heuristics \
 PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate \
   --input experiments/translation_unit_heuristics/cem_shifts_all_seed7/delta/all_heuristics.json \
   --site-data ../diplom_LLVM_IR/.compiler_gym/site_data \
-  --bitcode-dir experiments/translation_unit_bitcode/autotune_stratified_30 \
+  --bitcode-dir experiments/translation_unit_bitcode/cbench_v1 \
   --output experiments/translation_unit_eval/cem_shifts_all_seed7/delta/tu_eval_all_heuristics.json
 ```
 
@@ -304,8 +304,8 @@ Evaluation применяет pass-ы по одному, измеряет `.text
 
 ```bash
 PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate_topk_paths \
-  --graph runs/full_random_heuristic_20260602_231430/random/translation_unit_graphs/order_graphs_delta_with_starts.json \
-  --bitcode-dir experiments/translation_unit_bitcode/autotune_stratified_30 \
+  --graph runs/cbench_random_20260617_225213/pass_search/order_graphs_delta.json \
+  --bitcode-dir experiments/translation_unit_bitcode/cbench_v1 \
   --output runs/cycle_top10_starts_top10_paths_instr/tu_eval.json \
   --heuristic cycle_breaking_top_starts_top_paths \
   --top-starts 10 \
@@ -405,11 +405,11 @@ per-function последовательности на уровень всей �
 
 ### Данные И Объекты Измерения
 
-Основной экспериментальный набор состоит из `30` benchmark-ов / translation
-units и `444` выбранных функций. Функции получены из LLVM bitcode benchmark-ов,
-а затем используются для per-function поиска. Whole-TU проверка выполняется на
-полных `.bc` файлах benchmark-ов из
-`experiments/translation_unit_bitcode/autotune_stratified_30`.
+Основной экспериментальный набор для whole-TU результатов - `cbench` (`23`
+translation unit-а, `1335` выбранных функций). Функции получены из LLVM bitcode
+benchmark-ов и используются для per-function поиска, а whole-TU проверка
+выполняется на полных `.bc` файлах из
+`experiments/translation_unit_bitcode/cbench_v1`.
 
 В проекте используются два типа измерений:
 
@@ -437,33 +437,23 @@ units и `444` выбранных функций. Функции получен�
 
 В текущей серии экспериментов лучшим источником данных для построения TU-графов
 стал `Random Search`. Его полный результат находится в
-`runs/full_random_heuristic_20260602_231430/random/pass_search/comparison.json`.
+`runs/cbench_random_20260617_225213/pass_search/comparison.json`.
 
-Результаты `Random Search` на `444` функциях:
-
-| Метрика | Значение |
-|---|---:|
-| Функций | 444 |
-| Улучшены по `.text` | 334 / 444 = 75.23% |
-| Total `.text` delta | 38521 байт |
-| Mean `.text` delta | 86.76 байт на функцию |
-| `Random Search` лучше `-Oz` по `.text` | 208 / 444 = 46.85% |
-| Total `.text` delta для `-Oz` | 14271 байт |
-| Отношение total delta Random / `-Oz` | примерно 2.70x |
-
-Результаты по количеству машинных инструкций находятся в
-`runs/full_random_heuristic_20260602_231430/random/pass_search/instruction_count_comparison.json`:
+Результаты `Random Search` на `1335` функциях (`cbench`):
 
 | Метрика | Значение |
 |---|---:|
-| Baseline instructions | 119024 |
-| Random Search instructions | 110871 |
-| Total instruction delta | 8153 |
-| Weighted instruction improvement | 6.85% |
-| Улучшены по инструкциям | 298 / 444 = 67.12% |
-| `Random Search` лучше `-Oz` по инструкциям | 169 / 444 = 38.06% |
-| Total instruction delta для `-Oz` | 3603 |
-| Отношение instruction delta Random / `-Oz` | 2.26x |
+| Функций | 1335 |
+| Улучшены по `.text` | 1334 / 1335 = 99.93% |
+| Total `.text` delta | 429977 байт |
+| Mean `.text` delta | 322.08 байт на функцию |
+| `Random Search` лучше `-Oz` по `.text` | 966 / 1335 = 72.36% |
+| Total `.text` delta для `-Oz` | 338817 байт |
+| Отношение total delta Random / `-Oz` | примерно 1.27x |
+
+Отдельный function-level instruction-count прогон для `cbench` не делался; числа
+по машинным инструкциям приведены на whole-TU уровне в разделе «Основные TU
+Результаты».
 
 Вывод для диплома: даже простой Random Search даёт заметный function-level
 выигрыш и является сильным источником локальных последовательностей pass-ов для
@@ -653,7 +643,7 @@ walk использует телепорты и рестарты (`--teleport`, 
 PYTHONPATH=src python3 -m llvm_ir.stages.translation_unit.evaluate_chunk_forest \
   --comparison runs/<run>/random/pass_search/comparison.json \
   --algorithm random \
-  --bitcode-dir experiments/translation_unit_bitcode/autotune_stratified_30 \
+  --bitcode-dir experiments/translation_unit_bitcode/cbench_v1 \
   --output runs/<run>/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json \
   --paths 500 \
   --waves 2 \
@@ -713,112 +703,65 @@ scripts/nightly_big_pass_search_and_heuristics.sh
 
 ### Основные TU Результаты
 
-Ниже приведены лучшие сохранённые отчёты на `30` benchmark-ах. Основная
-метрика - weighted best improvement: суммарный выигрыш, делённый на суммарный
-baseline, поэтому большие benchmark-и влияют на итог пропорционально своему
-размеру. Все значения взяты из JSON-отчётов в `runs/`; `n/a` означает, что в
-этом запуске machine instruction count не измерялся.
+Единственная метрика сравнения - **macro vs `-Oz`**: для каждого benchmark-а
+считается `(oz_size - result_size) / oz_size`, то есть на сколько процентов
+результат эвристики меньше вывода `-Oz`; затем берётся **невзвешенное среднее**
+по benchmark-ам набора (каждый benchmark весит одинаково). Положительное
+значение = эвристика обходит `-Oz`, отрицательное = `-Oz` лучше. Все значения
+взяты из JSON-отчётов в `runs/`; `—` = benchmark в этом запуске не посчитан.
 
-#### Единое сравнение на одном датасете (`post_bugfix_random`)
+Сравниваются семь TU-эвристик на наборе cbench (23 benchmark-а). `random_walk_1000` приведён под
+этим именем независимо от фактического бюджета прохода.
 
-Таблицы ниже исторически смешивают запуски на разных per-function прогонах,
-поэтому строки не всегда сопоставимы напрямую. Для честного сравнения новые
-эвристики прогнаны на **одном** датасете
-(`post_bugfix_random_20260611_120635`, random search, `30` TU) с общим бюджетом
-реальных запусков. Полные слим-отчёты и эта таблица лежат в
-[`docs/results/`](docs/results/heuristics_comparison.md).
+#### cbench (23 benchmark-а)
 
-Приводятся два усреднения. **Weighted (micro)** = `Σ best_delta / Σ baseline`
-(бенчмарки весят пропорционально размеру) - основная метрика. **Macro** =
-`mean(best_delta / baseline)` по бенчмаркам (каждый весит одинаково; завышается
-мелкими TU с большим относительным выигрышем).
+| Эвристика | покрытие | macro vs `-Oz` |
+|---|---|---:|
+| `segment_tree` | 23 | **13.55%** |
+| `strong_links` | 23 | **13.12%** |
+| `measured_superpath` | 23 | **13.07%** |
+| `flow_paths` | 23 | **12.34%** |
+| `cycle_breaking` | 23 | **12.09%** |
+| `bucket_dag_teacher` | 23 | **10.99%** |
+| `random_walk_1000` | 23 | **8.37%** |
 
-| Эвристика | wtd `.text` | macro `.text` | wtd instr | macro instr | Better `-Oz` | total best delta |
-|---|---:|---:|---:|---:|---:|---:|
-| `measured_superpath` | **7.4816%** | 11.901% | **8.7662%** | 13.873% | **25/30** | 77292 |
-| `random_walk_top2000` | 6.9925% | n/a | 8.14% | n/a | 23/30 | 72239 |
-| `random_walk_top1000` | 6.9315% | 11.460% | 8.0048% | 13.390% | 23/30 | 71609 |
-| `chunk_forest` (minsup1) | 6.6303% | 11.548% | 7.9388% | 13.844% | 23/30 | 68497 |
-| `flow_paths` | 6.4036% | 10.138% | 7.29% | 11.796% | 23/30 | 66155 |
-| `bucket_dag_teacher` | 6.3853% | 10.719% | 7.35% | 12.812% | 21/30 | 65966 |
-| `function_sequences` (baseline) | 6.2719% | 11.150% | 7.24% | 12.863% | 23/30 | 64795 |
-| `-Oz` (baseline) | 1.7836% | n/a | n/a | n/a | n/a | n/a |
+Полная матрица по benchmark-ам (macro vs `-Oz`, %):
 
-На едином датасете лучшей эвристикой является `measured_superpath`: лидер по
-всем трём метрикам (`+0.55` п.п. по `.text` и `+0.76` п.п. по инструкциям против
-ближайшего `random_walk_top1000`) и `>=` random_walk на `28/30` benchmark-ах.
-`measured_superpath` - двухволновой обучающийся метод: короткие сегменты
-измеряются на TU, рёбра супер-графа тоже измеряются на TU (ε-greedy
-best-to-best с онлайн-обучением весов), затем ищутся лучшие суперпути длины
-`2..5`. `function_sequences` - наивный baseline переноса (применить найденную для
-каждой функции последовательность ко всему TU); то, что его обходят все
-графовые/поисковые методы, количественно показывает выигрыш именно от
-TU-агрегации.
+| benchmark | meas_sp | strong | seg_tree | flow | cycle | bucket | rwalk1000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| adpcm | **24.9** | **24.9** | **24.9** | **24.9** | **24.9** | **24.9** | **24.9** |
+| bitcount | **19.6** | 19.1 | **19.6** | 18.6 | 18.6 | 18.6 | 18.6 |
+| blowfish | 63.5 | 62.8 | **63.9** | 60.0 | 61.1 | 61.1 | 32.9 |
+| bzip2 | 21.5 | **22.2** | 21.0 | 20.8 | 20.8 | 19.8 | 18.2 |
+| crc32 | **69.9** | 69.7 | **69.9** | 69.7 | **69.9** | 69.7 | 69.7 |
+| dijkstra | **-4.3** | **-4.3** | **-4.3** | **-4.3** | **-4.3** | **-4.3** | **-4.3** |
+| ghostscript | 1.8 | **3.1** | 2.4 | 1.5 | 1.2 | 0.2 | 1.8 |
+| gsm | 32.3 | 32.1 | **33.6** | 29.9 | 31.2 | 31.0 | 28.0 |
+| ispell | 0.1 | **1.9** | 1.1 | 0.2 | -2.1 | -0.5 | -6.5 |
+| jpeg-c | 4.4 | **5.0** | **5.0** | 4.0 | 4.1 | 4.4 | 3.8 |
+| jpeg-d | 4.1 | **4.8** | 4.5 | 3.9 | 3.6 | 2.8 | 3.9 |
+| lame | 13.2 | 13.3 | **13.5** | 12.7 | 12.7 | 12.9 | 13.3 |
+| patricia | **-1.2** | -1.3 | **-1.2** | -2.8 | -2.8 | -23.6 | -2.8 |
+| qsort | **5.0** | **5.0** | **5.0** | **5.0** | **5.0** | 0.6 | **5.0** |
+| rijndael | **0.9** | **0.9** | **0.9** | 0.6 | **0.9** | **0.9** | 0.6 |
+| sha | 15.3 | 13.0 | **16.5** | 15.3 | **16.5** | **16.5** | **16.5** |
+| stringsearch | **7.2** | 5.4 | **7.2** | 6.7 | 6.7 | 5.0 | 1.9 |
+| stringsearch2 | **-2.0** | **-2.0** | **-2.0** | **-2.0** | -2.6 | -6.3 | -2.6 |
+| susan | 10.0 | 11.3 | **14.8** | 7.5 | 0.4 | 7.4 | -39.8 |
+| tiff2bw | 3.7 | 3.4 | **3.8** | 2.9 | 3.0 | 2.9 | 3.6 |
+| tiff2rgba | 3.7 | **4.0** | 3.8 | 2.7 | 3.0 | 3.1 | 2.9 |
+| tiffdither | 3.6 | **4.1** | 3.7 | 3.1 | 3.3 | 3.2 | 1.9 |
+| tiffmedian | 3.6 | 3.5 | **4.1** | 3.0 | 2.8 | 2.4 | 1.1 |
 
-Важная оговорка про датасет: строка `random_walk_top1000` со значением `7.5013%`
-ниже взята с *другого*, до-фиксового per-function прогона
-(`full_random_heuristic`), которому повезло на `tensorflow-v0_2`, поэтому её не
-следует использовать как планку - сравнивать нужно по таблице на едином датасете
-выше.
+Наблюдения:
 
-#### Лучшие Graph/Top-K/TU Эвристики
+- Все эвристики в среднем обходят `-Oz` (macro `> 0`), причём
+  сильнее всего там, где `-Oz` раздувает мелкие модули (на cbench - `crc32`,
+  `blowfish`, `adpcm`).
+- В топе устойчиво `segment_tree`, `strong_links` и `measured_superpath`;
+  `random_walk_1000` при минимальном бюджете заметно слабее на отдельных
+  benchmark-ах (`susan`, `blowfish`).
 
-| Эвристика / запуск | Report | `.text` total best delta | `.text` weighted best | Instruction total best delta | Instruction weighted best | Better than `-Oz` |
-|---|---|---:|---:|---:|---:|---:|
-| `random_walk_top1000` | `runs/random_walk_top1000_instr_20260608_224901/tu_eval_random_walk_top1000_instr.json` | 77495 | 7.5013% | 17383 | 8.4306% | 21/30 |
-| `cycle_breaking_top_starts_top_paths` (`top20 x top20`) | `runs/cycle_top20_starts_top20_paths_instr_20260605_114124/tu_eval_cycle_top20_starts_top20_paths_instr.json` | 74331 | 7.1950% | 16913 | 8.2026% | 20/30 |
-| `cycle_breaking_top_starts_top_paths` (`top10 x top10`, `delta_distance`) | `runs/cycle_top10_starts_top10_paths_delta_distance_instr_20260607_101117/tu_eval_cycle_top20_starts_top10_paths_delta_distance_instr.json` | 74055 | 7.1683% | 16843 | 8.1687% | 20/30 |
-| `cycle_breaking_max_path_top1000` | `runs/cycle_max_path_top1000_20260604_211303/tu_eval_cycle_breaking_max_path_top1000.json` | 73294 | 7.0946% | n/a | n/a | 20/30 |
-| `cycle_breaking_diverse_starts_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_cycle_breaking_diverse_starts.json` | 73158 | 7.0815% | n/a | n/a | 20/30 |
-| `cycle_breaking_superpath_topk` | `runs/superpath_top250_len20_segmin1_full_20260612_011504/tu_eval_cycle_superpath_top250_instr.json` | 66982 | 6.4836% | 15691 | 7.6100% | 22/30 |
-| `cycle_breaking_max_path_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_cycle_breaking_max_path.json` | 65449 | 6.3353% | n/a | n/a | 19/30 |
-| `chunk_forest` (`500 paths`, `2 waves`) | `runs/post_bugfix_random_20260611_120635/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json` | 63506 | 6.1472% | 14863 | 7.2084% | 23/30 |
-| `beam_search` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 62814 | 6.0802% | n/a | n/a | 23/30 |
-| `cycle_breaking_max_path` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 62745 | 6.0735% | n/a | n/a | 19/30 |
-| `random_walk_top10` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_top10_random_walk_exhaustive_len6.json` | 62060 | 6.0072% | n/a | n/a | 20/30 |
-| `exhaustive_len6` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 58989 | 5.7099% | n/a | n/a | 21/30 |
-| `random_walk` | `runs/post_bugfix_random_20260611_120635/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 58946 | 5.7058% | n/a | n/a | 22/30 |
-| `weighted_toposort` | `runs/post_bugfix_full_20260611_091641/cem/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 54708 | 5.2956% | n/a | n/a | 20/30 |
-| `dag_longest_path` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 50846 | 4.9217% | n/a | n/a | 18/30 |
-| `greedy_consensus` | `runs/full_random_heuristic_20260602_231430/random/translation_unit_eval/delta/tu_eval_all_heuristics.json` | 34300 | 3.3201% | n/a | n/a | 18/30 |
-
-#### Лучшие Aggregation Эвристики
-
-Все строки ниже взяты из одного full-30 запуска:
-`runs/aggregation_all11_random_full_20260612_011206/tu_eval_all_aggregation_heuristics.json`.
-Для top-k aggregation-методов указана лучшая full-30 строка `top1`, потому что
-последующие top-k строки в этом отчёте покрывают не все `30` benchmark-ов.
-
-| Aggregation эвристика | `.text` total best delta | `.text` weighted best | Better than `-Oz` | Failed |
-|---|---:|---:|---:|---:|
-| `hpp_eades_topk_top1` | 62793 | 6.0782% | 24/30 | 3 |
-| `markov_hitting` | 60829 | 5.8881% | 21/30 | 2 |
-| `beam_diversity_top1` | 59670 | 5.7759% | 22/30 | 2 |
-| `scc_ordering` | 56212 | 5.4411% | 22/30 | 0 |
-| `pagerank` | 25095 | 2.4291% | 22/30 | 1 |
-| `hpp` | 24412 | 2.3630% | 20/30 | 1 |
-| `ilp_arrangement` | 24412 | 2.3630% | 20/30 | 1 |
-| `wfas_eades` | 24412 | 2.3630% | 20/30 | 1 |
-| `voting_ensemble` | 24158 | 2.3384% | 22/30 | 1 |
-| `position_median` | 21222 | 2.0542% | 20/30 | 1 |
-| `cluster_aware_top1` | 20960 | 2.0289% | 20/30 | 2 |
-
-Выводы из таблиц:
-
-- Лучший сохранённый результат остаётся у `random_walk_top1000`: `7.5013%` по
-  `.text` и `8.4306%` по числу машинных инструкций.
-- Лучшая детерминированная graph/top-k схема -
-  `cycle_breaking_top_starts_top_paths` (`top20 x top20`): `7.1950%` по `.text`
-  и `8.2026%` по инструкциям.
-- `cycle_breaking_superpath_topk` после фиксов единиц измерения даёт `6.4836%`
-  по `.text`; лучший более поздний fixed-запуск был стабильнее по реализации,
-  но ниже по сохранённым метрикам (`6.3522%`).
-- `chunk_forest` в первом full-запуске даёт `6.1472%` по `.text` и `7.2084%` по
-  инструкциям, но средний пул получился маленьким (`~20` уникальных путей на
-  benchmark), поэтому вторая волна фактически не раскрылась.
-- Среди aggregation-эвристик сильнее всего выглядит `hpp_eades_topk_top1`
-  (`6.0782%`), затем `markov_hitting` (`5.8881%`) и `beam_diversity_top1`
-  (`5.7759%`).
 
 ### Интерпретация Для Диплома
 
@@ -834,17 +777,18 @@ heuristic используется как генератор небольшог�
 каждого кандидата проверяется реальным запуском LLVM. Такой hybrid-подход
 уменьшает пространство поиска, но сохраняет связь с настоящей целевой метрикой.
 
-Distance-aware веса являются попыткой точнее кодировать локальные зависимости
-между pass-ами. Они дали небольшой положительный эффект для `top10 x top10`, но
-не превзошли более широкий поиск `top20 x top20`. Это можно интерпретировать
-так: локальная близость действительно несёт полезный сигнал, но разнообразие
-кандидатов и прямой TU-evaluation остаются более важными факторами.
+На cbench по метрике macro vs `-Oz` лучше всего показывают себя `segment_tree`,
+`strong_links` и `measured_superpath` (`~13%` в среднем над `-Oz`), а самый
+бедный по бюджету `random_walk_1000` заметно отстаёт. Это подтверждает, что
+важны не столько детали взвешивания графа, сколько разнообразие кандидатов и
+прямой TU-evaluation: эвристики, измеряющие больше осмысленных кандидатов на
+реальном TU, выигрывают.
 
 ### Ограничения Экспериментов
 
 При описании результатов важно явно указать ограничения:
 
-- используется ограниченный набор из `30` benchmark-ов;
+- используется ограниченный набор из `23` benchmark-ов (`cbench`);
 - измерения зависят от версии LLVM tools и target backend;
 - некоторые последовательности pass-ов могут приводить к падению `opt`; evaluator
   ловит такие ошибки и использует лучший уже найденный префикс;
@@ -864,28 +808,27 @@ Distance-aware веса являются попыткой точнее коди�
 3. Предложена графовая агрегация function-level последовательностей в
    pass-order graph с несколькими режимами взвешивания, включая `delta` и
    `delta_distance`.
-4. Реализована эвристика `cycle_breaking_top_starts_top_paths`, которая удаляет
-   циклы, выбирает сильные стартовые pass-ы и генерирует top-k путей в DAG.
+4. Реализовано семь TU-эвристик агрегации (`segment_tree`, `strong_links`,
+   `measured_superpath`, `flow_paths`, `cycle_breaking`, `bucket_dag_teacher`,
+   `random_walk`), генерирующих из pass-order graph кандидатов-последователь­
+   ности для whole-TU.
 5. Добавлена real-TU проверка candidate path-ов с prefix-cache и измерением как
    `.text`, так и количества машинных инструкций.
-6. Экспериментально показано, что предложенная схема даёт до `7.5013%`
-   weighted improvement по `.text` и до `8.4306%` weighted improvement по числу
-   машинных инструкций на наборе из `30` translation units.
+6. Экспериментально показано на `23` translation unit-ах (`cbench`), что все
+   предложенные TU-эвристики в среднем обходят `-Oz` по метрике macro vs `-Oz`:
+   лучшая (`segment_tree`) даёт `+13.55%` по `.text` относительно `-Oz`, тогда
+   как сам `-Oz` на мелких модулях часто увеличивает размер.
 
 ### Где Лежат Основные Артефакты
 
+Все основные результаты считаются на наборе `cbench`:
+
 | Артефакт | Путь |
 |---|---|
-| Function-level Random Search | `runs/full_random_heuristic_20260602_231430/random/pass_search/comparison.json` |
-| Instruction-count для Random Search | `runs/full_random_heuristic_20260602_231430/random/pass_search/instruction_count_comparison.json` |
-| Top10 x Top10 TU eval | `runs/cycle_top10_starts_top10_paths_instr/tu_eval.json` |
-| Top20 x Top20 TU eval | `runs/cycle_top20_starts_top20_paths_instr_20260605_114124/tu_eval_cycle_top20_starts_top20_paths_instr.json` |
-| Delta-distance Top10 x Top10 TU eval | `runs/cycle_top10_starts_top10_paths_delta_distance_instr_20260607_101117/tu_eval_cycle_top20_starts_top10_paths_delta_distance_instr.json` |
-| Random Walk Top1000 TU eval | `runs/random_walk_top1000_instr_20260608_224901/tu_eval_random_walk_top1000_instr.json` |
-| Top1000 cycle-breaking eval | `runs/cycle_max_path_top1000_20260604_211303/tu_eval_cycle_breaking_max_path_top1000.json` |
-| Superpath Top250 len20 eval | `runs/superpath_top250_len20_segmin1_full_20260612_011504/tu_eval_cycle_superpath_top250_instr.json` |
-| Chunk-Forest eval | `runs/post_bugfix_random_20260611_120635/random/translation_unit_chunk_forest/tu_eval_chunk_forest.json` |
-| Aggregation all-11 TU eval | `runs/aggregation_all11_random_full_20260612_011206/tu_eval_all_aggregation_heuristics.json` |
+| Function-level Random Search (cbench) | `runs/cbench_random_20260617_225213/pass_search/comparison.json` |
+| Pass-order graph (cbench) | `runs/cbench_random_20260617_225213/pass_search/order_graphs_delta.json` |
+| TU eval отчёты эвристик (cbench) | `runs/cbench_*_2026*/tu_eval.json` (объединяются по benchmark-ам) |
+| Whole-TU bitcode (cbench) | `experiments/translation_unit_bitcode/cbench_v1/` |
 
 
 ## Полный Эксперимент
@@ -948,7 +891,7 @@ cd ../LLVM_IR
 MPLCONFIGDIR=/tmp/mpl \
 PYTHONPATH=src:../llvm-minimizer/src \
 ../llvm-minimizer/.venv/bin/python -m llvm_ir.stages.function_search.pass_search \
-  --dataset-dir datasets/autotune_stratified_30_functions_bc \
+  --dataset-dir datasets/cbench_v1_functions_bc \
   --limit 20 \
   --steps 6 \
   --iterations 3 \
