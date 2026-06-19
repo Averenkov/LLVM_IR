@@ -13,6 +13,23 @@ from llvm_ir.stages.function_search.cem import (
     cyclic_shifts,
     search_pass_sequence_for_function,
 )
+from llvm_ir.stages.function_search.pass_search import passes_to_pipeline
+
+
+class PipelineRenderTests(unittest.TestCase):
+    def test_instcombine_gets_no_verify_fixpoint(self) -> None:
+        # instcombine aborts under opt's standalone fixpoint verifier on large
+        # modules (e.g. ghostscript); we invoke it the way default<Oz> does.
+        self.assertEqual(
+            passes_to_pipeline(["sroa", "instcombine", "gvn"]),
+            "sroa,instcombine<no-verify-fixpoint>,gvn",
+        )
+
+    def test_other_passes_unchanged(self) -> None:
+        self.assertEqual(passes_to_pipeline(["sroa", "gvn", "sccp"]), "sroa,gvn,sccp")
+
+    def test_empty(self) -> None:
+        self.assertEqual(passes_to_pipeline([]), "")
 from llvm_ir.stages.function_search.algorithms import CEMPassSearch, FunctionSearchContext
 from llvm_ir.stages.function_search.algorithms import RandomPassSearch
 from llvm_ir.stages.function_search import pass_search

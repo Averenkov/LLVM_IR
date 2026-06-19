@@ -56,9 +56,13 @@ class TUEvaluator:
             obj_path = tmp / "optimized.o"
             try:
                 if passes:
+                    from llvm_ir.stages.function_search.pass_search import (
+                        passes_to_pipeline,
+                    )
+
                     opt_cmd = [
                         self.opt_bin,
-                        f"-passes={','.join(passes)}",
+                        f"-passes={passes_to_pipeline(passes)}",
                         str(self.tu_path),
                         "-o",
                         str(optimized),

@@ -63,6 +63,23 @@ def measure_text_size(bitcode_path: Path, workdir: Path) -> int:
         obj_path.unlink(missing_ok=True)
 
 
+# Some passes abort under opt's standalone fixpoint verifier on large modules
+# (e.g. instcombine on ghostscript: "Instruction Combining did not reach a
+# fixpoint after 1 iterations" -> opt Aborted) even though they run fine inside
+# default<Oz>, which invokes them with the verifier relaxed. We invoke them the
+# same relaxed way so one huge TU does not crash the whole run. The pass *name*
+# we store in caches, graphs and reports stays plain ("instcombine"); only the
+# opt pipeline string passed on the command line gets the decoration.
+_PIPELINE_PASS_OVERRIDES = {
+    "instcombine": "instcombine<no-verify-fixpoint>",
+}
+
+
+def passes_to_pipeline(passes: list[str]) -> str:
+    """Render a list of plain pass names into an opt ``-passes`` pipeline string."""
+    return ",".join(_PIPELINE_PASS_OVERRIDES.get(p, p) for p in passes)
+
+
 def apply_pass_sequence(
     input_bc: Path,
     passes: list[str],
@@ -71,7 +88,7 @@ def apply_pass_sequence(
     if not passes:
         shutil.copyfile(input_bc, output_bc)
         return
-    run_cmd(["opt", f"-passes={','.join(passes)}", str(input_bc), "-o", str(output_bc)])
+    run_cmd(["opt", f"-passes={passes_to_pipeline(passes)}", str(input_bc), "-o", str(output_bc)])
 
 
 def optimize_oz(input_bc: Path, output_bc: Path) -> None:
@@ -95,7 +112,7 @@ def filter_valid_passes(
             pass_valid = False
             for bitcode_path in paths:
                 try:
-                    run_cmd(["opt", f"-passes={pass_name}", str(bitcode_path), "-o", str(out)])
+                    run_cmd(["opt", f"-passes={passes_to_pipeline([pass_name])}", str(bitcode_path), "-o", str(out)])
                     pass_valid = True
                     break
                 except LLVMCommandError:
