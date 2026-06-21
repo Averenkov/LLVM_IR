@@ -23,7 +23,10 @@ from llvm_ir.heuristics.translation_unit.measured_superpath import (
     select_diverse_by_start,
     vertex_budget_paths,
 )
-from llvm_ir.heuristics.translation_unit.segment_tree import segment_tree_merge
+from llvm_ir.heuristics.translation_unit.segment_tree import (
+    segment_tree_beam_merge,
+    segment_tree_merge,
+)
 from llvm_ir.stages.function_search.pass_search import optimize_oz, require_tools
 from llvm_ir.stages.translation_unit.evaluate import (
     summarize_evaluations,
@@ -52,9 +55,10 @@ from llvm_ir.stages.translation_unit.measure_cache import MeasureCache
 HEURISTIC = "segment_tree"
 
 
-def _row(benchmark, bitcode_path, passes, best_size, baseline_size, oz_size, baseline_instr, oz_instr, extra):
+def _row(benchmark, bitcode_path, passes, best_size, baseline_size, oz_size, baseline_instr, oz_instr, extra,
+         heuristic=HEURISTIC):
     return {
-        "benchmark": benchmark, "heuristic": HEURISTIC, "candidate_index": 0,
+        "benchmark": benchmark, "heuristic": heuristic, "candidate_index": 0,
         "bitcode_path": str(bitcode_path), "baseline_size": baseline_size, "oz_size": oz_size,
         "oz_delta": (baseline_size - oz_size) if oz_size is not None else None,
         "final_size": best_size, "final_delta": baseline_size - best_size,
@@ -119,6 +123,27 @@ def evaluate_segment_tree_for_benchmark(benchmark, function_results, bitcode_pat
             )
             return int(res["best_size"]), tuple(res["best_passes"])
 
+        def measure_exact(passes):
+            """(.text size of applying the exact tuple, ok); ok=False if it crashed."""
+            key = tuple(passes)
+            evaluate_candidate_with_prefix_cache(
+                list(key), workdir, prefix_cache, measure_instructions=False, size_cache=cache
+            )
+            entry = prefix_cache.get(key)
+            if entry is None or entry.get("error"):
+                return None, False
+            return int(entry["size"]), True
+
+        # Beam width scaled inversely by module size: small TUs get the full beam,
+        # huge ones (ghostscript) collapse to the floor (=non-beam best-prefix).
+        node_beam = int(getattr(args, "node_beam", 1) or 1)
+        node_beam_min = int(getattr(args, "node_beam_min", 1) or 1)
+        size_ref_b = max(1, int(getattr(args, "node_beam_size_ref", 60000) or 60000))
+        node_beam_eff = node_beam
+        if node_beam > 1:
+            scaled = round(node_beam * size_ref_b / max(1, baseline_size))
+            node_beam_eff = max(node_beam_min, min(node_beam, scaled))
+
         # ---- Phase 1: measured 4-pass super-vertices (leaves) ----
         generated = vertex_budget_paths(
             nodes, edges, support, total_budget=args.gen_budget, path_nodes=args.segment_nodes
@@ -136,20 +161,30 @@ def evaluate_segment_tree_for_benchmark(benchmark, function_results, bitcode_pat
 
         # ---- Phase 2: segment-tree merge ----
         leaves.sort(key=lambda item: (item[1], item[0]))  # best (smallest .text) first
-        (best_passes, best_size), merge_evals = segment_tree_merge(
-            leaves, measure, max_length=args.max_length
-        )
+        if node_beam_eff > 1:
+            heuristic_name = "segment_tree_beam"
+            best_passes, best_size = segment_tree_beam_merge(
+                leaves, measure, measure_exact, max_length=args.max_length, node_beam=node_beam_eff
+            )
+        else:
+            heuristic_name = HEURISTIC
+            (best_passes, best_size), _ = segment_tree_merge(
+                leaves, measure, max_length=args.max_length
+            )
         if not best_passes or best_size is None:
             best_passes, best_size = (), baseline_size
+        merge_evals = (len(prefix_cache) - 1) - leaf_evals
 
         extra = {
             "kept_edges": len(edges), "graph_nodes": len(nodes), "size_scale": round(size_scale, 3),
             "leaves": len(leaves), "eff_select": eff_select, "crashing_passes": sorted(crashing),
             "leaf_real_evals": leaf_evals, "merge_real_evals": merge_evals,
             "real_evals": len(prefix_cache) - 1,
+            "node_beam": node_beam_eff,
         }
         row = _row(benchmark, bitcode_path, best_passes, int(best_size),
-                   baseline_size, oz_size, baseline_instr, oz_instr, extra)
+                   baseline_size, oz_size, baseline_instr, oz_instr, extra,
+                   heuristic=heuristic_name)
 
         instruction_eval_cost = 0
         if measure_instructions and baseline_instr is not None and best_passes:
@@ -172,9 +207,10 @@ def make_report_payload(args, selected_rows, candidate_rows, prefix_cache_counts
     summary = summarize_evaluations(selected_rows)
     add_instruction_summary(summary, selected_rows)
     add_failure_summary(summary, selected_rows)
-    if selected_rows and HEURISTIC in summary:
-        summary[HEURISTIC]["mean_real_evals"] = sum(int(r.get("real_evals") or 0) for r in selected_rows) / len(selected_rows)
-        summary[HEURISTIC]["total_real_evals"] = sum(int(r.get("real_evals") or 0) for r in selected_rows)
+    hname = selected_rows[0]["heuristic"] if selected_rows else HEURISTIC
+    if selected_rows and hname in summary:
+        summary[hname]["mean_real_evals"] = sum(int(r.get("real_evals") or 0) for r in selected_rows) / len(selected_rows)
+        summary[hname]["total_real_evals"] = sum(int(r.get("real_evals") or 0) for r in selected_rows)
     return {
         "comparison_input": str(args.comparison), "bitcode_dir": str(args.bitcode_dir),
         "config": {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
@@ -247,6 +283,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-size-scale", type=float, default=3.0)
     parser.add_argument("--min-budget", type=int, default=16)
     parser.add_argument("--diverse-select", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--node-beam", type=int, default=1,
+                        help="Merge-node beam width (include/skip DP). 1 = plain best-prefix segment_tree; "
+                             ">1 enables the segment_tree_beam variant.")
+    parser.add_argument("--node-beam-min", type=int, default=1,
+                        help="Floor for the size-scaled beam (large modules collapse toward this).")
+    parser.add_argument("--node-beam-size-ref", type=int, default=60000,
+                        help="Baseline .text size (bytes) that gets the full --node-beam; bigger modules "
+                             "get a proportionally smaller beam (down to --node-beam-min).")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--prevalidate-passes", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--measure-cache-dir", default=".measure_cache")
