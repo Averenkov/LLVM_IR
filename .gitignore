@@ -10,3 +10,6 @@ runs/
 src/*.egg-info/
 
 *.nohup.log
+
+# codex task notes (not part of the thesis repo)
+docs/tasks_for_codex/
