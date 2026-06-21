@@ -13,3 +13,12 @@ src/*.egg-info/
 
 # codex task notes (not part of the thesis repo)
 docs/tasks_for_codex/
+
+# autotune dataset/results (project is cbench-only)
+datasets/autotune_stratified_30_functions_bc/
+docs/results/random_walk_1000_postbugfix.json
+docs/results/measured_superpath_best.json
+docs/results/bucket_dag_teacher.json
+docs/results/chunk_forest_best.json
+docs/results/flow_paths.json
+docs/results/function_sequences.json
