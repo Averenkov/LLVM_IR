@@ -48,6 +48,49 @@ def mine_strong_links(
     return links
 
 
+def mine_common_subsequences(
+    function_results: list[FunctionPassResult],
+    *,
+    min_support: int = 2,
+    max_links: int = 0,
+    max_len: int = 4,
+    max_source_len: int = 24,
+    positives_only: bool = True,
+) -> list[tuple[tuple[str, ...], int]]:
+    """Order-preserving (non-contiguous) subsequences in >= min_support functions.
+
+    Like :func:`mine_strong_links`, but mines *subsequences* instead of
+    substrings: for every function's best sequence, all length ``1..max_len``
+    subsequences (combinations of positions, order kept) are enumerated and
+    counted; those occurring in at least ``min_support`` functions are returned,
+    weighted by the function count. ``max_len`` bounds the combinatorial blow-up
+    (and ``max_source_len`` caps the prefix of very long sequences considered).
+    """
+    from itertools import combinations
+
+    support: dict[tuple[str, ...], set[int]] = {}
+    for index, result in enumerate(function_results):
+        if positives_only and result.delta <= 0:
+            continue
+        seq = tuple(result.passes)[:max_source_len]
+        n = len(seq)
+        subs: set[tuple[str, ...]] = set()
+        for k in range(1, min(max_len, n) + 1):
+            for idxs in combinations(range(n), k):
+                subs.add(tuple(seq[i] for i in idxs))
+        for sub in subs:
+            support.setdefault(sub, set()).add(index)
+    links = [
+        (sub, len(funcs))
+        for sub, funcs in support.items()
+        if len(funcs) >= min_support
+    ]
+    links.sort(key=lambda item: (-item[1], -len(item[0]), item[0]))
+    if max_links and max_links > 0:
+        links = links[:max_links]
+    return links
+
+
 # measure(passes) -> (best_size, best_passes); edge_weight(u, v) -> int
 MeasureFn = Callable[[tuple[str, ...]], tuple[int, tuple[str, ...]]]
 EdgeWeightFn = Callable[[str, str], int]
